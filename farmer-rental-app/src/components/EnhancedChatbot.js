@@ -82,12 +82,6 @@ const EnhancedChatbot = () => {
         case 'select_equipment':
           await selectEquipment(data);
           break;
-        case 'confirm_booking':
-          await confirmBooking(data);
-          break;
-        case 'process_payment':
-          await processPayment(data);
-          break;
         case 'approve_request':
           await approveRequest(data);
           break;
