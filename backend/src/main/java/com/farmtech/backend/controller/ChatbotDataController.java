@@ -457,12 +457,30 @@ public class ChatbotDataController {
     @PostMapping("/create-booking")
     public ResponseEntity<?> createBooking(@RequestBody Map<String, Object> bookingData) {
         try {
+            System.out.println("=== CREATE BOOKING REQUEST (CHATBOT) ===");
+            System.out.println("Request data: " + bookingData);
+            
             Long equipmentId = Long.parseLong(bookingData.get("equipmentId").toString());
             Long renterId = Long.parseLong(bookingData.get("renterId").toString());
             String startTime = bookingData.get("startTime").toString();
             Integer duration = Integer.parseInt(bookingData.get("duration").toString());
             String location = bookingData.get("location").toString();
             Double totalCost = Double.parseDouble(bookingData.get("totalCost").toString());
+            
+            // Extract location coordinates if provided
+            Double locationLatitude = null;
+            Double locationLongitude = null;
+            if (bookingData.containsKey("locationLatitude") && bookingData.get("locationLatitude") != null) {
+                locationLatitude = Double.parseDouble(bookingData.get("locationLatitude").toString());
+            }
+            if (bookingData.containsKey("locationLongitude") && bookingData.get("locationLongitude") != null) {
+                locationLongitude = Double.parseDouble(bookingData.get("locationLongitude").toString());
+            }
+            
+            System.out.println("Equipment ID: " + equipmentId);
+            System.out.println("Renter ID: " + renterId);
+            System.out.println("Location: " + location);
+            System.out.println("Coordinates: " + locationLatitude + ", " + locationLongitude);
 
             // Find equipment
             Optional<Equipment> equipmentOpt = equipmentRepository.findById(equipmentId);
@@ -490,8 +508,10 @@ public class ChatbotDataController {
                 renterFarmer.setPassword(user.getPassword());
                 renterFarmer.setAddress(user.getAddress());
                 renterFarmer = farmerRepository.save(renterFarmer);
+                System.out.println("✅ Created Farmer record for renter: " + renterFarmer.getId());
             } else {
                 renterFarmer = farmerOpt.get();
+                System.out.println("✅ Found existing Farmer record: " + renterFarmer.getId());
             }
 
             // Parse startTime to LocalDate
@@ -507,11 +527,14 @@ public class ChatbotDataController {
             booking.setStartDate(startDate);
             booking.setHours(duration);
             booking.setLocation(location);
+            booking.setLocationLatitude(locationLatitude);
+            booking.setLocationLongitude(locationLongitude);
             booking.setTotalCost(totalCost);
             booking.setStatus("PENDING");
             booking.setCreatedAt(java.time.LocalDateTime.now());
 
             Booking savedBooking = bookingRepository.save(booking);
+            System.out.println("✅ Booking saved with ID: " + savedBooking.getId());
 
             // Create candidate entries for nearby owners
             createCandidateEntriesForChatbot(savedBooking);
@@ -553,14 +576,23 @@ public class ChatbotDataController {
     private void createCandidateEntriesForChatbot(Booking booking) {
         System.out.println("=== CREATING CANDIDATE ENTRIES (CHATBOT) ===");
         System.out.println("Booking ID: " + booking.getId());
+        System.out.println("Equipment Type: " + booking.getEquipment().getType());
+        System.out.println("Renter ID: " + booking.getRenter().getId());
 
         // Get all OWNER users
         List<User> ownerUsers = userRepository.findByRole("OWNER");
-        System.out.println("Total OWNER users: " + ownerUsers.size());
+        System.out.println("Total OWNER users found: " + ownerUsers.size());
+        
+        if (ownerUsers.isEmpty()) {
+            System.err.println("⚠️ WARNING: No OWNER users found in database!");
+            return;
+        }
         
         List<Farmer> potentialOwners = new ArrayList<>();
         
         for (User ownerUser : ownerUsers) {
+            System.out.println("\n--- Processing OWNER user: " + ownerUser.getName() + " (ID: " + ownerUser.getId() + ")");
+            
             // Get or create Farmer record for each owner
             Optional<Farmer> farmerOpt = farmerRepository.findByPhone(ownerUser.getPhone());
             Farmer ownerFarmer;
@@ -574,21 +606,32 @@ public class ChatbotDataController {
                 ownerFarmer.setPassword(ownerUser.getPassword());
                 ownerFarmer.setAddress(ownerUser.getAddress());
                 ownerFarmer = farmerRepository.save(ownerFarmer);
-                System.out.println("✅ Created Farmer record for OWNER user: " + ownerUser.getId());
+                System.out.println("✅ Created Farmer record for OWNER user: " + ownerUser.getId() + " -> Farmer ID: " + ownerFarmer.getId());
             } else {
                 ownerFarmer = farmerOpt.get();
+                System.out.println("✅ Found existing Farmer record: " + ownerFarmer.getId());
             }
             
             // Check if this owner has the requested equipment type
             List<Equipment> ownerEquipment = equipmentRepository.findByOwner_Id(ownerFarmer.getId());
+            System.out.println("   Owner has " + ownerEquipment.size() + " equipment(s)");
+            
+            for (Equipment eq : ownerEquipment) {
+                System.out.println("   - Equipment: " + eq.getName() + " (Type: " + eq.getType() + ")");
+            }
+            
             boolean hasMatchingEquipment = ownerEquipment.stream()
                 .anyMatch(eq -> eq.getType().equalsIgnoreCase(booking.getEquipment().getType()));
             
             if (hasMatchingEquipment) {
+                System.out.println("   ✅ MATCH! Owner has matching equipment type");
                 potentialOwners.add(ownerFarmer);
+            } else {
+                System.out.println("   ❌ NO MATCH: Owner doesn't have " + booking.getEquipment().getType());
             }
         }
         
+        System.out.println("\n=== SUMMARY ===");
         System.out.println("Potential owners with matching equipment: " + potentialOwners.size());
         
         // Create candidate entries
