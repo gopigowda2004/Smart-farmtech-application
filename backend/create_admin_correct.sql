@@ -1,0 +1,3 @@
+INSERT INTO users (email, phone, password, name, full_name, gender, dob, address, district, state, pincode, farm_size, crop_type, experience, equipment_owned, role) VALUES ('admin@farmtech.com', '9999999999', 'admin123', 'Admin', 'System Administrator', 'Other', '1990-01-01', 'FarmTech Headquarters', 'Bangalore', 'Karnataka', '560001', 'N/A', 'N/A', 'System Management', 'All Equipment', 'ADMIN') ON DUPLICATE KEY UPDATE role = 'ADMIN';
+
+INSERT INTO farmers (name, email, phone, password, address) VALUES ('System Administrator', 'admin@farmtech.com', '9999999999', 'admin123', 'FarmTech HQ, Bangalore') ON DUPLICATE KEY UPDATE name = 'System Administrator';
