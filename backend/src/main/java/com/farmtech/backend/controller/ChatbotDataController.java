@@ -2,6 +2,8 @@ package com.farmtech.backend.controller;
 
 import com.farmtech.backend.entity.*;
 import com.farmtech.backend.repository.*;
+import com.farmtech.backend.service.EmailService;
+import com.farmtech.backend.service.DistanceService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -28,6 +30,12 @@ public class ChatbotDataController {
 
     @Autowired
     private BookingCandidateRepository candidateRepository;
+
+    @Autowired
+    private EmailService emailService;
+
+    @Autowired
+    private DistanceService distanceService;
 
     /**
      * Get comprehensive user data for chatbot context
@@ -65,12 +73,12 @@ public class ChatbotDataController {
 
             // Role-specific data
             if ("RENTER".equals(user.getRole()) || "ADMIN".equals(user.getRole())) {
-                userData.put("bookings", getRenterBookings(farmerId != null ? farmerId : userId));
+                userData.put("bookings", fetchRenterBookings(farmerId != null ? farmerId : userId));
             }
 
             if ("OWNER".equals(user.getRole()) || "ADMIN".equals(user.getRole())) {
-                userData.put("equipment", getOwnerEquipment(farmerId));
-                userData.put("requests", getOwnerRequests(farmerId));
+                userData.put("equipment", fetchOwnerEquipment(farmerId));
+                userData.put("requests", fetchOwnerRequests(farmerId));
             }
 
             return ResponseEntity.ok(userData);
@@ -81,9 +89,9 @@ public class ChatbotDataController {
     }
 
     /**
-     * Get renter's bookings
+     * Get renter's bookings (helper method for /user-data endpoint)
      */
-    private List<Map<String, Object>> getRenterBookings(Long renterId) {
+    private List<Map<String, Object>> fetchRenterBookings(Long renterId) {
         List<Booking> bookings = bookingRepository.findByRenterId(renterId);
         return bookings.stream().map(booking -> {
             Map<String, Object> bookingData = new HashMap<>();
@@ -108,9 +116,9 @@ public class ChatbotDataController {
     }
 
     /**
-     * Get owner's equipment
+     * Get owner's equipment (helper method for /user-data endpoint)
      */
-    private List<Map<String, Object>> getOwnerEquipment(Long ownerId) {
+    private List<Map<String, Object>> fetchOwnerEquipment(Long ownerId) {
         if (ownerId == null) return new ArrayList<>();
         
         List<Equipment> equipmentList = equipmentRepository.findByOwner_Id(ownerId);
@@ -126,9 +134,9 @@ public class ChatbotDataController {
     }
 
     /**
-     * Get owner's pending requests
+     * Get owner's pending requests (helper method for /user-data endpoint)
      */
-    private List<Map<String, Object>> getOwnerRequests(Long ownerId) {
+    private List<Map<String, Object>> fetchOwnerRequests(Long ownerId) {
         if (ownerId == null) return new ArrayList<>();
         
         // Get all pending candidates for this owner
@@ -323,6 +331,127 @@ public class ChatbotDataController {
     }
 
     /**
+     * Get renter's bookings for chatbot
+     */
+    @GetMapping("/renter-bookings")
+    public ResponseEntity<?> getRenterBookings(@RequestParam Long userId) {
+        try {
+            // Find user
+            Optional<User> userOpt = userRepository.findById(userId);
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "User not found"));
+            }
+
+            // Find farmer record
+            User user = userOpt.get();
+            Optional<Farmer> farmerOpt = farmerRepository.findByPhone(user.getPhone());
+            if (farmerOpt.isEmpty()) {
+                return ResponseEntity.ok(new ArrayList<>());
+            }
+
+            Farmer farmer = farmerOpt.get();
+            List<Booking> bookings = bookingRepository.findByRenterId(farmer.getId());
+
+            List<Map<String, Object>> bookingList = bookings.stream()
+                .map(booking -> {
+                    Map<String, Object> bookingData = new HashMap<>();
+                    bookingData.put("id", booking.getId());
+                    bookingData.put("status", booking.getStatus());
+                    bookingData.put("startDate", booking.getStartDate());
+                    bookingData.put("endDate", booking.getEndDate());
+                    bookingData.put("duration", booking.getHours());
+                    bookingData.put("totalCost", booking.getTotalCost());
+                    bookingData.put("location", booking.getLocation());
+                    
+                    Equipment equipment = booking.getEquipment();
+                    if (equipment != null) {
+                        bookingData.put("equipmentName", equipment.getName());
+                        bookingData.put("equipmentType", equipment.getType());
+                    }
+                    
+                    return bookingData;
+                })
+                .collect(Collectors.toList());
+
+            return ResponseEntity.ok(bookingList);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Get owner's pending requests for chatbot
+     */
+    @GetMapping("/owner-requests")
+    public ResponseEntity<?> getOwnerRequests(@RequestParam Long farmerId) {
+        try {
+            // Get all pending candidates for this owner
+            List<BookingCandidate> candidates = candidateRepository.findByOwnerIdAndStatus(
+                farmerId, BookingCandidate.CandidateStatus.PENDING);
+            
+            List<Map<String, Object>> requestList = candidates.stream()
+                .map(candidate -> {
+                    Map<String, Object> requestData = new HashMap<>();
+                    requestData.put("candidateId", candidate.getId());
+                    requestData.put("distance", candidate.getDistanceKm());
+                    
+                    Booking booking = candidate.getBooking();
+                    if (booking != null) {
+                        requestData.put("bookingId", booking.getId());
+                        requestData.put("startDate", booking.getStartDate());
+                        requestData.put("duration", booking.getHours());
+                        requestData.put("totalCost", booking.getTotalCost());
+                        requestData.put("location", booking.getLocation());
+                        
+                        Equipment equipment = booking.getEquipment();
+                        if (equipment != null) {
+                            requestData.put("equipmentName", equipment.getName());
+                            requestData.put("equipmentType", equipment.getType());
+                        }
+                        
+                        Farmer renter = booking.getRenter();
+                        if (renter != null) {
+                            requestData.put("renterName", renter.getName());
+                            requestData.put("renterPhone", renter.getPhone());
+                        }
+                    }
+                    
+                    return requestData;
+                })
+                .collect(Collectors.toList());
+
+            return ResponseEntity.ok(requestList);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Get owner's equipment for chatbot
+     */
+    @GetMapping("/owner-equipment")
+    public ResponseEntity<?> getOwnerEquipment(@RequestParam Long farmerId) {
+        try {
+            List<Equipment> equipmentList = equipmentRepository.findByOwner_Id(farmerId);
+            
+            List<Map<String, Object>> equipData = equipmentList.stream()
+                .map(eq -> {
+                    Map<String, Object> data = new HashMap<>();
+                    data.put("id", eq.getId());
+                    data.put("name", eq.getName());
+                    data.put("type", eq.getType());
+                    data.put("pricePerHour", eq.getPrice());
+                    return data;
+                })
+                .collect(Collectors.toList());
+
+            return ResponseEntity.ok(equipData);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
      * Create a new booking through chatbot
      */
     @PostMapping("/create-booking")
@@ -370,9 +499,10 @@ public class ChatbotDataController {
             java.time.LocalDate startDate = startDateTime.toLocalDate();
 
             // Create booking
+            Equipment equipment = equipmentOpt.get();
             Booking booking = new Booking();
-            booking.setEquipment(equipmentOpt.get());
-            booking.setOwner(equipmentOpt.get().getOwner());
+            booking.setEquipment(equipment);
+            booking.setOwner(equipment.getOwner());
             booking.setRenter(renterFarmer);
             booking.setStartDate(startDate);
             booking.setHours(duration);
@@ -383,13 +513,119 @@ public class ChatbotDataController {
 
             Booking savedBooking = bookingRepository.save(booking);
 
+            // Create candidate entries for nearby owners
+            createCandidateEntriesForChatbot(savedBooking);
+
+            // Send email notification to booker
+            try {
+                String renterEmail = renterFarmer.getEmail();
+                String renterName = renterFarmer.getName();
+                
+                if (renterEmail != null && !renterEmail.isBlank()) {
+                    emailService.sendBookingConfirmationToBooker(
+                        renterEmail, 
+                        renterName, 
+                        equipment.getName(), 
+                        startDate.toString(), 
+                        duration, 
+                        savedBooking.getId()
+                    );
+                    System.out.println("✅ [ChatbotDataController] Email sent to: " + renterEmail);
+                }
+            } catch (Exception e) {
+                System.err.println("❌ [ChatbotDataController] Failed to send email: " + e.getMessage());
+            }
+
             return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", "Booking created successfully",
                 "bookingId", savedBooking.getId()
             ));
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
+    }
+
+    /**
+     * Create booking candidate entries for all OWNER users
+     */
+    private void createCandidateEntriesForChatbot(Booking booking) {
+        System.out.println("=== CREATING CANDIDATE ENTRIES (CHATBOT) ===");
+        System.out.println("Booking ID: " + booking.getId());
+
+        // Get all OWNER users
+        List<User> ownerUsers = userRepository.findByRole("OWNER");
+        System.out.println("Total OWNER users: " + ownerUsers.size());
+        
+        List<Farmer> potentialOwners = new ArrayList<>();
+        
+        for (User ownerUser : ownerUsers) {
+            // Get or create Farmer record for each owner
+            Optional<Farmer> farmerOpt = farmerRepository.findByPhone(ownerUser.getPhone());
+            Farmer ownerFarmer;
+            
+            if (farmerOpt.isEmpty()) {
+                // Create Farmer record if doesn't exist
+                ownerFarmer = new Farmer();
+                ownerFarmer.setName(ownerUser.getName());
+                ownerFarmer.setEmail(ownerUser.getEmail());
+                ownerFarmer.setPhone(ownerUser.getPhone());
+                ownerFarmer.setPassword(ownerUser.getPassword());
+                ownerFarmer.setAddress(ownerUser.getAddress());
+                ownerFarmer = farmerRepository.save(ownerFarmer);
+                System.out.println("✅ Created Farmer record for OWNER user: " + ownerUser.getId());
+            } else {
+                ownerFarmer = farmerOpt.get();
+            }
+            
+            // Check if this owner has the requested equipment type
+            List<Equipment> ownerEquipment = equipmentRepository.findByOwner_Id(ownerFarmer.getId());
+            boolean hasMatchingEquipment = ownerEquipment.stream()
+                .anyMatch(eq -> eq.getType().equalsIgnoreCase(booking.getEquipment().getType()));
+            
+            if (hasMatchingEquipment) {
+                potentialOwners.add(ownerFarmer);
+            }
+        }
+        
+        System.out.println("Potential owners with matching equipment: " + potentialOwners.size());
+        
+        // Create candidate entries
+        for (Farmer owner : potentialOwners) {
+            // Skip if owner is the same as renter
+            if (owner.getId().equals(booking.getRenter().getId())) {
+                continue;
+            }
+            
+            // Calculate distance (default to 0 if coordinates not available)
+            Double distance = 0.0;
+            try {
+                if (booking.getLocationLatitude() != null && booking.getLocationLongitude() != null &&
+                    owner.getLatitude() != null && owner.getLongitude() != null) {
+                    distance = distanceService.distanceInKm(
+                        booking.getLocationLatitude(), 
+                        booking.getLocationLongitude(),
+                        owner.getLatitude(), 
+                        owner.getLongitude()
+                    );
+                }
+            } catch (Exception e) {
+                System.err.println("⚠️ Failed to calculate distance for owner: " + owner.getId());
+            }
+            
+            // Create candidate
+            BookingCandidate candidate = new BookingCandidate();
+            candidate.setBooking(booking);
+            candidate.setOwner(owner);
+            candidate.setStatus(BookingCandidate.CandidateStatus.PENDING);
+            candidate.setDistanceKm(distance);
+            candidate.setInvitedAt(java.time.LocalDateTime.now());
+            
+            candidateRepository.save(candidate);
+            System.out.println("✅ Created candidate for owner: " + owner.getName() + " (Distance: " + distance + " km)");
+        }
+        
+        System.out.println("=== CANDIDATE CREATION COMPLETE ===");
     }
 }

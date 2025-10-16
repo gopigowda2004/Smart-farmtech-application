@@ -85,9 +85,6 @@ const EnhancedChatbot = () => {
         case 'approve_request':
           await approveRequest(data);
           break;
-        case 'reject_request':
-          await rejectRequest(data);
-          break;
         case 'cancel_booking':
           await cancelBooking(data);
           break;
@@ -295,9 +292,9 @@ const EnhancedChatbot = () => {
         requestText += `   Location: ${req.location}\n`;
         requestText += `   Distance: ${req.distance} km\n\n`;
 
+        // Only show Accept button, no Reject button
         requestButtons.push(
-          { label: `✅ Accept #${req.candidateId}`, action: 'approve_request', data: req.candidateId },
-          { label: `❌ Reject #${req.candidateId}`, action: 'reject_request', data: req.candidateId }
+          { label: `✅ Accept #${req.candidateId}`, action: 'approve_request', data: req.candidateId }
         );
       });
 
