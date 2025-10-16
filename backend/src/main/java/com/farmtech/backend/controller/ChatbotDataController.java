@@ -295,4 +295,101 @@ public class ChatbotDataController {
             "candidateId", candidateId
         ));
     }
+
+    /**
+     * Get available equipment for booking
+     */
+    @GetMapping("/available-equipment")
+    public ResponseEntity<?> getAvailableEquipment() {
+        try {
+            List<Equipment> allEquipment = equipmentRepository.findAll();
+            
+            List<Map<String, Object>> equipmentList = allEquipment.stream()
+                .map(eq -> {
+                    Map<String, Object> equipData = new HashMap<>();
+                    equipData.put("id", eq.getId());
+                    equipData.put("name", eq.getName());
+                    equipData.put("type", eq.getType());
+                    equipData.put("pricePerHour", eq.getPrice());
+                    equipData.put("description", eq.getDescription());
+                    return equipData;
+                })
+                .collect(Collectors.toList());
+            
+            return ResponseEntity.ok(equipmentList);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Create a new booking through chatbot
+     */
+    @PostMapping("/create-booking")
+    public ResponseEntity<?> createBooking(@RequestBody Map<String, Object> bookingData) {
+        try {
+            Long equipmentId = Long.parseLong(bookingData.get("equipmentId").toString());
+            Long renterId = Long.parseLong(bookingData.get("renterId").toString());
+            String startTime = bookingData.get("startTime").toString();
+            Integer duration = Integer.parseInt(bookingData.get("duration").toString());
+            String location = bookingData.get("location").toString();
+            Double totalCost = Double.parseDouble(bookingData.get("totalCost").toString());
+
+            // Find equipment
+            Optional<Equipment> equipmentOpt = equipmentRepository.findById(equipmentId);
+            if (equipmentOpt.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Equipment not found"));
+            }
+
+            // Find renter user
+            Optional<User> userOpt = userRepository.findById(renterId);
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "User not found"));
+            }
+
+            // Find or create Farmer record for the renter
+            User user = userOpt.get();
+            Optional<Farmer> farmerOpt = farmerRepository.findByPhone(user.getPhone());
+            Farmer renterFarmer;
+            
+            if (farmerOpt.isEmpty()) {
+                // Create Farmer record if doesn't exist
+                renterFarmer = new Farmer();
+                renterFarmer.setName(user.getName());
+                renterFarmer.setEmail(user.getEmail());
+                renterFarmer.setPhone(user.getPhone());
+                renterFarmer.setPassword(user.getPassword());
+                renterFarmer.setAddress(user.getAddress());
+                renterFarmer = farmerRepository.save(renterFarmer);
+            } else {
+                renterFarmer = farmerOpt.get();
+            }
+
+            // Parse startTime to LocalDate
+            java.time.LocalDateTime startDateTime = java.time.LocalDateTime.parse(startTime);
+            java.time.LocalDate startDate = startDateTime.toLocalDate();
+
+            // Create booking
+            Booking booking = new Booking();
+            booking.setEquipment(equipmentOpt.get());
+            booking.setOwner(equipmentOpt.get().getOwner());
+            booking.setRenter(renterFarmer);
+            booking.setStartDate(startDate);
+            booking.setHours(duration);
+            booking.setLocation(location);
+            booking.setTotalCost(totalCost);
+            booking.setStatus("PENDING");
+            booking.setCreatedAt(java.time.LocalDateTime.now());
+
+            Booking savedBooking = bookingRepository.save(booking);
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Booking created successfully",
+                "bookingId", savedBooking.getId()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
 }

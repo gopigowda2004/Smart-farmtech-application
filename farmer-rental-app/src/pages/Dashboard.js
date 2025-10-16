@@ -4,7 +4,7 @@ import axios from "axios";
 import { useI18n } from "../i18n/i18n";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import NotificationSystem from "../components/NotificationSystem";
-import AIChatbot from "../components/AIChatbot";
+import EnhancedChatbot from "../components/EnhancedChatbot";
 import api from "../api/axiosInstance";
 import { isAdminUser, checkAdminStatus } from "../utils/adminUtils";
 
@@ -842,8 +842,8 @@ export default function Dashboard() {
           </div>
         </header>
 
-        {/* AI Chatbot Assistant */}
-        <AIChatbot />
+        {/* Enhanced AI Chatbot Assistant */}
+        <EnhancedChatbot />
 
         {activeTab === "dashboard" && (
           <>
