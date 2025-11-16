@@ -108,7 +108,9 @@ const EnhancedChatbot = () => {
   // ==================== BOOKING WORKFLOW ====================
   const startBookingWorkflow = async () => {
     try {
-      const response = await api.get('/chatbot-data/available-equipment');
+      // Add timestamp to prevent caching
+      const timestamp = new Date().getTime();
+      const response = await api.get(`/chatbot-data/available-equipment?_t=${timestamp}`);
       const equipment = response.data;
 
       if (equipment.length === 0) {
@@ -230,7 +232,9 @@ const EnhancedChatbot = () => {
   // ==================== VIEW BOOKINGS ====================
   const showMyBookings = async (userId) => {
     try {
-      const response = await api.get(`/chatbot-data/renter-bookings?userId=${userId}`);
+      // Add timestamp to prevent caching
+      const timestamp = new Date().getTime();
+      const response = await api.get(`/chatbot-data/renter-bookings?userId=${userId}&_t=${timestamp}`);
       const bookings = response.data;
 
       if (bookings.length === 0) {
@@ -272,7 +276,9 @@ const EnhancedChatbot = () => {
   // ==================== OWNER: PENDING REQUESTS ====================
   const showPendingRequests = async (farmerId) => {
     try {
-      const response = await api.get(`/chatbot-data/owner-requests?farmerId=${farmerId}`);
+      // Add timestamp to prevent caching
+      const timestamp = new Date().getTime();
+      const response = await api.get(`/chatbot-data/owner-requests?farmerId=${farmerId}&_t=${timestamp}`);
       const requests = response.data;
 
       if (requests.length === 0) {
@@ -310,7 +316,9 @@ const EnhancedChatbot = () => {
   // ==================== OWNER: MY EQUIPMENT ====================
   const showMyEquipment = async (farmerId) => {
     try {
-      const response = await api.get(`/chatbot-data/owner-equipment?farmerId=${farmerId}`);
+      // Add timestamp to prevent caching
+      const timestamp = new Date().getTime();
+      const response = await api.get(`/chatbot-data/owner-equipment?farmerId=${farmerId}&_t=${timestamp}`);
       const equipment = response.data;
 
       if (equipment.length === 0) {

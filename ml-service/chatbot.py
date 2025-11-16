@@ -1,16 +1,28 @@
 import re
 from typing import Dict, List, Any
 from translator import Translator
+from tf_intent_classifier import TensorFlowIntentClassifier
 
 class BilingualChatbot:
     """
     Advanced bilingual chatbot for FarmTech
     Supports English and Kannada with context-aware responses
+    Can use TensorFlow for AI-powered intent classification
     """
-    
-    def __init__(self):
+
+    def __init__(self, use_ai=False):
         self.translator = Translator()
         self.intents = self._load_intents()
+        self.use_ai = use_ai
+        self.ai_classifier = None
+
+        if use_ai:
+            try:
+                self.ai_classifier = TensorFlowIntentClassifier()
+                print("AI intent classifier loaded successfully")
+            except Exception as e:
+                print(f"Failed to load AI classifier: {e}. Falling back to rule-based.")
+                self.use_ai = False
         
     def _load_intents(self) -> Dict:
         """Load predefined intents and responses"""
@@ -233,15 +245,26 @@ class BilingualChatbot:
         }
     
     def _detect_intent(self, message: str) -> str:
-        """Detect user intent from message"""
+        """Detect user intent from message using AI or rule-based approach"""
+        # Try AI classification first if enabled
+        if self.use_ai and self.ai_classifier:
+            try:
+                ai_intent, confidence = self.ai_classifier.predict_intent(message)
+                # Only use AI result if confidence is high enough (>0.7)
+                if confidence > 0.7:
+                    return ai_intent
+            except Exception as e:
+                print(f"AI classification failed: {e}. Using rule-based fallback.")
+
+        # Fall back to rule-based detection
         message_lower = message.lower()
-        
+
         # Check each intent's patterns
         for intent_name, intent_data in self.intents.items():
             for pattern in intent_data["patterns"]:
                 if re.search(pattern, message_lower, re.IGNORECASE):
                     return intent_name
-        
+
         return "general"
     
     def _get_default_response(self, language: str) -> str:

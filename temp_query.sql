@@ -1,0 +1,1 @@
+SELECT id, username, email, name FROM FarmTech.user WHERE email='gopicn378@gmail.com' LIMIT 5;

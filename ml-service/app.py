@@ -13,8 +13,10 @@ app = Flask(__name__)
 CORS(app)
 
 # Initialize chatbots and translator
-chatbot = BilingualChatbot()
-personalized_chatbot = PersonalizedChatbot()
+# Set use_ai=True to enable TensorFlow-based intent classification
+USE_AI = os.getenv('USE_AI', 'false').lower() == 'true'
+chatbot = BilingualChatbot(use_ai=USE_AI)
+personalized_chatbot = PersonalizedChatbot(use_ai=USE_AI)
 translator = Translator()
 
 # Backend API base URL

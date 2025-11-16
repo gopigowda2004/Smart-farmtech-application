@@ -11,6 +11,8 @@ public class Farmer {
     private Long id;
 
     private String name;
+    
+    @Column(nullable = false)
     private String email;
 
     @Column(nullable = false)

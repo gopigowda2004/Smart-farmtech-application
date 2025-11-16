@@ -36,27 +36,33 @@ public class User {
     private String equipmentOwned; // e.g. Tractor, Rotavator
 
     private String role; // FARMER, RENTER, ADMIN
-    
+
     @Column(name = "email_verified", nullable = false)
     private Boolean emailVerified = false;
-    
+
     @Column(name = "id_proof_type")
     private String idProofType;
-    
+
     @Column(name = "id_proof_path")
     private String idProofPath;
-    
+
     @Column(name = "rejection_reason")
     private String rejectionReason;
-    
+
     // Location coordinates for Google Maps navigation
     @Column(name = "latitude")
     private Double latitude;
-    
+
     @Column(name = "longitude")
     private Double longitude;
-    
+
     private String village;
+
+    @Column(name = "otp")
+    private String otp;
+
+    @Column(name = "otp_expiry")
+    private java.time.Instant otpExpiry;
 
     public User() {}
 
@@ -155,4 +161,10 @@ public class User {
     
     public String getVillage() { return village; }
     public void setVillage(String village) { this.village = village; }
+
+    public String getOtp() { return otp; }
+    public void setOtp(String otp) { this.otp = otp; }
+
+    public java.time.Instant getOtpExpiry() { return otpExpiry; }
+    public void setOtpExpiry(java.time.Instant otpExpiry) { this.otpExpiry = otpExpiry; }
 }

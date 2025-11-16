@@ -32,10 +32,11 @@ export default function MyBookings() {
     setError(""); // Clear previous errors
     
     api
-      .get(`/bookings/renter/${renterId}`)
+      .get(`/bookings/my-bookings?userId=${renterId}`)
       .then((res) => {
-        console.log("✅ Bookings fetched:", res.data?.length || 0, "bookings");
-        setBookings(res.data || []);
+        console.log("✅ Bookings fetched:", res.data?.bookings?.length || 0, "bookings");
+        const bookingsData = res.data?.bookings || [];
+        setBookings(bookingsData);
       })
       .catch((err) => {
         console.error("❌ Error fetching my bookings:", err?.response?.data || err.message);

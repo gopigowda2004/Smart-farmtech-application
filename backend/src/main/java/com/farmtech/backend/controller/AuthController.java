@@ -4,11 +4,14 @@ import com.farmtech.backend.entity.Farmer;
 import com.farmtech.backend.entity.User;
 import com.farmtech.backend.repository.FarmerRepository;
 import com.farmtech.backend.repository.UserRepository;
+import com.farmtech.backend.service.EmailService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -21,6 +24,9 @@ public class AuthController {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private EmailService emailService;
+
     // ✅ Register User (Admin, Renter, Owner)
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody Map<String, Object> request) {
@@ -30,9 +36,15 @@ public class AuthController {
         String name = (String) request.get("name");
         String role = (String) request.get("role"); // ADMIN, RENTER, OWNER
         
+        System.out.println("📝 [AuthController] Registration attempt:");
+        System.out.println("   Email: " + email);
+        System.out.println("   Phone: " + phone);
+        System.out.println("   Name: " + name);
+        System.out.println("   Role: " + role);
+        
         // Validate required fields
-        if (email == null || phone == null || password == null || name == null) {
-            return ResponseEntity.badRequest().body(Map.of("message", "Email, phone, password, and name are required"));
+        if (email == null || email.isBlank() || phone == null || password == null || name == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Email (required), phone, password, and name are required"));
         }
         
         // Set default role if not provided
@@ -67,6 +79,7 @@ public class AuthController {
         user.setRole(role);
         
         User savedUser = userRepository.save(user);
+        System.out.println("✅ [AuthController] User saved with ID: " + savedUser.getId() + ", Email: " + savedUser.getEmail());
         
         // For OWNER role, also create a Farmer record (for equipment ownership)
         Long farmerId = null;
@@ -107,10 +120,13 @@ public class AuthController {
     // ✅ Register Farmer (Legacy endpoint for backward compatibility)
     @PostMapping("/register-farmer")
     public ResponseEntity<?> registerFarmer(@RequestBody Farmer farmer) {
+        if (farmer.getEmail() == null || farmer.getEmail().isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Email is required"));
+        }
         if (farmerRepository.findByPhone(farmer.getPhone()).isPresent()) {
             return ResponseEntity.badRequest().body(Map.of("message", "Phone already registered"));
         }
-        if (farmer.getEmail() != null && farmerRepository.findByEmail(farmer.getEmail()).isPresent()) {
+        if (farmerRepository.findByEmail(farmer.getEmail()).isPresent()) {
             return ResponseEntity.badRequest().body(Map.of("message", "Email already registered"));
         }
         Farmer savedFarmer = farmerRepository.save(farmer);
@@ -124,90 +140,172 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> request) {
         String phone = request.get("phone");
-        String password = request.get("password");
 
-        // First, try to authenticate using the User table (new registration system)
+        if (phone == null || phone.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Phone is required"));
+        }
+
         Optional<User> userOpt = userRepository.findByPhone(phone);
-        
-        if (userOpt.isPresent() && userOpt.get().getPassword().equals(password)) {
-            User user = userOpt.get();
-            
-            // Check if there's a corresponding Farmer record for equipment ownership
-            Optional<Farmer> farmerOpt = farmerRepository.findByPhone(phone);
-            Long farmerId = null;
-            String farmerAddress = user.getAddress();
-            
-            if (farmerOpt.isPresent()) {
-                farmerId = farmerOpt.get().getId();
-                // Use farmer address if available, otherwise use user address
-                if (farmerOpt.get().getAddress() != null) {
-                    farmerAddress = farmerOpt.get().getAddress();
-                }
-                System.out.println("✅ Login: Found Farmer ID " + farmerId + " for user " + user.getName());
-            } else if ("OWNER".equals(user.getRole()) || "ADMIN".equals(user.getRole())) {
-                // Auto-create Farmer record for OWNER/ADMIN users who don't have one
-                System.out.println("⚠️ Login: OWNER/ADMIN user has no Farmer record, creating one...");
-                Farmer newFarmer = new Farmer();
-                newFarmer.setName(user.getName());
-                newFarmer.setEmail(user.getEmail());
-                newFarmer.setPhone(user.getPhone());
-                newFarmer.setPassword(user.getPassword());
-                newFarmer.setAddress(user.getAddress());
-                newFarmer.setLatitude(0.0);
-                newFarmer.setLongitude(0.0);
-                
-                Farmer savedFarmer = farmerRepository.save(newFarmer);
-                farmerId = savedFarmer.getId();
-                System.out.println("✅ Login: Created Farmer ID " + farmerId + " for OWNER user " + user.getName());
-            }
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("message", "Login successful");
-            response.put("userId", user.getId());
-            response.put("farmerId", farmerId);
-            response.put("name", user.getName());
-            response.put("email", user.getEmail());
-            response.put("phone", user.getPhone());
-            response.put("address", farmerAddress);
-            response.put("role", user.getRole() != null ? user.getRole() : "USER");
-            response.put("isAdmin", "ADMIN".equals(user.getRole()));
-            
-            System.out.println("✅ Login response: userId=" + user.getId() + ", farmerId=" + farmerId + ", role=" + user.getRole());
-            
-            return ResponseEntity.ok(response);
-        }
-        
-        // Fallback: try to authenticate using the Farmer table (legacy system)
-        Optional<Farmer> farmerOpt = farmerRepository.findByPhone(phone);
 
-        if (farmerOpt.isPresent() && farmerOpt.get().getPassword().equals(password)) {
-            Farmer farmer = farmerOpt.get();
-            
-            // For legacy farmers, default role is USER
-            String userRole = "USER";
-            Long userId = null;
-            
-            // Check if there's a corresponding User record
-            if (userOpt.isPresent()) {
-                User user = userOpt.get();
-                userRole = user.getRole() != null ? user.getRole() : "USER";
-                userId = user.getId();
-            }
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("message", "Login successful");
-            response.put("farmerId", farmer.getId());
-            response.put("userId", userId);
-            response.put("name", farmer.getName());
-            response.put("email", farmer.getEmail());
-            response.put("phone", farmer.getPhone());
-            response.put("address", farmer.getAddress());
-            response.put("role", userRole);
-            response.put("isAdmin", "ADMIN".equals(userRole));
-            
-            return ResponseEntity.ok(response);
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.status(401).body(Map.of("message", "Invalid credentials"));
         }
-        
-        return ResponseEntity.status(401).body(Map.of("message", "Invalid credentials"));
+
+        User user = userOpt.get();
+        String requestedRole = request.get("role");
+        boolean isAdminUser = user.getRole() != null && user.getRole().equalsIgnoreCase("ADMIN");
+        boolean adminPasswordLoginRequested = requestedRole != null && requestedRole.equalsIgnoreCase("ADMIN");
+
+        if (!adminPasswordLoginRequested && isAdminUser) {
+            // Fallback: if frontend forgot to send role but password present, honor password flow for admins
+            adminPasswordLoginRequested = request.get("password") != null;
+        }
+
+        if (adminPasswordLoginRequested) {
+            if (!isAdminUser) {
+                return ResponseEntity.status(403).body(Map.of("message", "Access denied for non-admin user"));
+            }
+
+            String password = request.get("password");
+            if (password == null || password.isBlank()) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Password is required for admin login"));
+            }
+
+            if (user.getPassword() == null || !user.getPassword().equals(password)) {
+                return ResponseEntity.status(401).body(Map.of("message", "Invalid admin credentials"));
+            }
+
+            userRepository.clearOtpForUser(user.getId());
+            return createUserLoginResponse(user);
+        }
+
+        String otp = request.get("otp");
+
+        // If OTP provided -> verify OTP flow
+        if (otp != null && !otp.isBlank()) {
+            return handleOtpVerification(user, otp);
+        }
+
+        // Generate OTP and send email
+        return handleOtpGeneration(user);
+    }
+
+    private ResponseEntity<?> handleOtpGeneration(User user) {
+        String otp = generateOtp();
+        Instant expiry = Instant.now().plusSeconds(5 * 60); // 5 minutes validity
+
+        userRepository.updateOtpForUser(user.getId(), otp, expiry);
+
+        emailService.sendOtpEmail(user.getEmail(), otp);
+
+        Map<String, Object> maskedEmail = maskEmail(user.getEmail());
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "OTP sent to your registered email");
+        response.put("emailPrefix", maskedEmail.get("prefix"));
+        response.put("maskedDomain", maskedEmail.get("maskedDomain"));
+        response.put("otpSent", true);
+        response.put("userId", user.getId());
+
+        return ResponseEntity.ok(response);
+    }
+
+    private ResponseEntity<?> handleOtpVerification(User user, String otp) {
+        if (user.getOtp() == null || user.getOtpExpiry() == null) {
+            return ResponseEntity.status(401).body(Map.of("message", "No active OTP. Please request a new one."));
+        }
+
+        if (!user.getOtp().equals(otp)) {
+            return ResponseEntity.status(401).body(Map.of("message", "Invalid OTP"));
+        }
+
+        if (user.getOtpExpiry().isBefore(Instant.now())) {
+            return ResponseEntity.status(401).body(Map.of("message", "OTP expired. Please request a new one."));
+        }
+
+        userRepository.clearOtpForUser(user.getId());
+
+        Optional<User> refreshedUser = userRepository.findById(user.getId());
+        if (refreshedUser.isEmpty()) {
+            return ResponseEntity.status(500).body(Map.of("message", "User record missing after OTP verification"));
+        }
+
+        return createUserLoginResponse(refreshedUser.get());
+    }
+
+    private Map<String, Object> maskEmail(String email) {
+        if (email == null || !email.contains("@")) {
+            return Map.of("prefix", "user", "maskedDomain", "****");
+        }
+
+        String[] parts = email.split("@", 2);
+        String prefix = parts[0];
+        String domain = parts[1];
+
+        // Show first 4 characters of email, mask the rest of the prefix
+        String visiblePrefix = prefix.length() <= 4 ? prefix : prefix.substring(0, 4);
+        String maskedPrefix = visiblePrefix + "****";
+
+        // Mask domain except first character and TLD
+        String maskedDomain;
+        int lastDotIndex = domain.lastIndexOf('.');
+        if (lastDotIndex > 1) {
+            String domainName = domain.substring(0, lastDotIndex);
+            String tld = domain.substring(lastDotIndex);
+            String visibleDomainChar = domainName.substring(0, 1);
+            maskedDomain = visibleDomainChar + "****" + tld;
+        } else {
+            maskedDomain = "****";
+        }
+
+        return Map.of("prefix", maskedPrefix, "maskedDomain", maskedDomain);
+    }
+
+    private String generateOtp() {
+        int otp = ThreadLocalRandom.current().nextInt(100000, 999999);
+        return String.valueOf(otp);
+    }
+
+    private ResponseEntity<?> createUserLoginResponse(User user) {
+        Optional<Farmer> farmerOpt = farmerRepository.findByPhone(user.getPhone());
+        Long farmerId = null;
+        String farmerAddress = user.getAddress();
+
+        if (farmerOpt.isPresent()) {
+            Farmer farmer = farmerOpt.get();
+            farmerId = farmer.getId();
+            if (farmer.getAddress() != null) {
+                farmerAddress = farmer.getAddress();
+            }
+            System.out.println("✅ Login: Found Farmer ID " + farmerId + " for user " + user.getName());
+        } else if ("OWNER".equals(user.getRole()) || "ADMIN".equals(user.getRole())) {
+            System.out.println("⚠️ Login: OWNER/ADMIN user has no Farmer record, creating one...");
+            Farmer newFarmer = new Farmer();
+            newFarmer.setName(user.getName());
+            newFarmer.setEmail(user.getEmail());
+            newFarmer.setPhone(user.getPhone());
+            newFarmer.setPassword(user.getPassword());
+            newFarmer.setAddress(user.getAddress());
+            newFarmer.setLatitude(0.0);
+            newFarmer.setLongitude(0.0);
+
+            Farmer savedFarmer = farmerRepository.save(newFarmer);
+            farmerId = savedFarmer.getId();
+            System.out.println("✅ Login: Created Farmer ID " + farmerId + " for OWNER user " + user.getName());
+        }
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Login successful");
+        response.put("userId", user.getId());
+        response.put("farmerId", farmerId);
+        response.put("name", user.getName());
+        response.put("email", user.getEmail());
+        response.put("phone", user.getPhone());
+        response.put("address", farmerAddress);
+        response.put("role", user.getRole() != null ? user.getRole() : "USER");
+        response.put("isAdmin", "ADMIN".equals(user.getRole()));
+
+        System.out.println("✅ Login response: userId=" + user.getId() + ", farmerId=" + farmerId + ", role=" + user.getRole());
+
+        return ResponseEntity.ok(response);
     }
 }

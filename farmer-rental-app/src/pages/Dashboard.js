@@ -795,25 +795,7 @@ export default function Dashboard() {
               </li>
             </>
           )}
-          <li style={styles.navItem} onClick={() => navigate("/ml/crop-recommendation")}>
-            <span>{t("dashboard.menu.cropRecommendation")}</span>
-          </li>
-          <li style={styles.navItem} onClick={() => navigate("/ml/fertilizer-prediction")}
-          >
-            <span>{t("dashboard.menu.fertilizerPrediction")}</span>
-          </li>
-          <li style={styles.navItem} onClick={() => navigate("/ml/crop-yield-estimation")}
-          >
-            <span>{t("dashboard.menu.cropYieldEstimation")}</span>
-          </li>
-          <li style={styles.navItem} onClick={() => navigate("/ml/soil-analysis")}
-          >
-            <span>{t("dashboard.menu.soilAnalysis")}</span>
-          </li>
-          <li style={styles.navItem} onClick={() => navigate("/ml/plant-disease")}
-          >
-            <span>{t("dashboard.menu.plantDiseaseDetection")}</span>
-          </li>
+
           <li style={styles.logout} onClick={handleLogout}>
             {t("dashboard.menu.logout")}
           </li>

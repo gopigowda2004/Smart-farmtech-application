@@ -8,8 +8,8 @@ class PersonalizedChatbot(BilingualChatbot):
     Enhanced chatbot with personalized responses based on user data
     """
     
-    def __init__(self):
-        super().__init__()
+    def __init__(self, use_ai=False):
+        super().__init__(use_ai)
         self.personalized_intents = self._load_personalized_intents()
         self.backend_api_base = "http://localhost:8090"
     

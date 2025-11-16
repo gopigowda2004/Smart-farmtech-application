@@ -114,7 +114,7 @@
 				<artifactId>flyway-maven-plugin</artifactId>
 				<version>10.10.0</version>
 				<configuration>
-					<url>jdbc:mysql://localhost:3306/farmtech</url>
+					<url>jdbc:mysql://localhost:3307/FarmTech</url>
 					<user>root</user>
 					<password>root</password>
 				</configuration>

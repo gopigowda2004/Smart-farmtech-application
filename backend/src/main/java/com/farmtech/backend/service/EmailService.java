@@ -7,6 +7,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import jakarta.mail.internet.MimeMessage;
+import jakarta.annotation.PostConstruct;
 
 @Service
 public class EmailService {
@@ -19,6 +20,104 @@ public class EmailService {
 
     @Value("${email.enabled:false}")
     private boolean emailEnabled;
+    
+    @PostConstruct
+    public void init() {
+        System.out.println("📧 [EmailService] Initializing...");
+        System.out.println("   Email Enabled: " + emailEnabled);
+        System.out.println("   Mail Sender: " + (mailSender != null ? "✅ Configured" : "⚠️ NOT CONFIGURED"));
+        System.out.println("   From Email: " + fromEmail);
+    }
+
+    public void sendOtpEmail(String to, String otp) {
+        String subject = "Your FarmTech OTP Code";
+        String body = String.format(
+                "Dear user,%n%n" +
+                "We received a request to sign in to your FarmTech account.%n" +
+                "Please use the following One-Time Password (OTP) to complete your login:%n%n" +
+                "OTP: %s%n%n" +
+                "This code is valid for the next 5 minutes. If you did not request this, you can ignore this message.%n%n" +
+                "Regards,%n" +
+                "FarmTech Support Team",
+                otp
+        );
+
+        sendEmail(to, subject, body);
+    }
+
+    public void sendEmailHtml(String to, String subject, String htmlBody) {
+        System.out.println("\n========== 📧 SENDEMAILER HTML ==========");
+        System.out.println("Timestamp: " + new java.util.Date());
+        System.out.println("Email Enabled: " + emailEnabled);
+        System.out.println("Mail Sender Configured: " + (mailSender != null));
+        System.out.println("To: " + to);
+        System.out.println("Subject: " + subject);
+        System.out.println("Body length: " + (htmlBody != null ? htmlBody.length() : 0) + " chars");
+        System.out.println("From Email: " + fromEmail);
+        System.out.println("Thread: " + Thread.currentThread().getName());
+        
+        if (!emailEnabled) {
+            System.out.println("❌ Email feature is DISABLED in application.properties");
+            System.out.println("========================================\n");
+            return;
+        }
+
+        if (to == null || to.isBlank()) {
+            System.out.println("❌ Recipient email is EMPTY or NULL. Skipping email.");
+            System.out.println("========================================\n");
+            return;
+        }
+
+        try {
+            if (mailSender == null) {
+                System.out.println("❌ CRITICAL: Mail sender is NOT configured!");
+                System.out.println("   Spring may not have initialized JavaMailSender bean");
+                System.out.println("   Make sure spring.mail.* properties are configured");
+                System.out.println("========================================\n");
+                return;
+            }
+
+            System.out.println("✅ Mail sender is configured");
+            System.out.println("Creating MIME message...");
+            System.out.flush();
+            
+            MimeMessage mimeMessage = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
+            
+            helper.setFrom("FarmTech <" + fromEmail + ">");
+            helper.setReplyTo(fromEmail);
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(htmlBody, true);
+            
+            mimeMessage.setHeader("X-Mailer", "FarmTech Equipment Rental System v1.0");
+            mimeMessage.setHeader("X-Priority", "3");
+            mimeMessage.setHeader("X-Auto-Response-Suppress", "OOF, DR, RN, NRN, AutoReply");
+            mimeMessage.setHeader("Precedence", "bulk");
+
+            System.out.println("📤 About to send email via SMTP to: " + to);
+            System.out.flush();
+            mailSender.send(mimeMessage);
+            System.out.println("✅ ✅ ✅ EMAIL SENT SUCCESSFULLY ✅ ✅ ✅");
+            System.out.println("   Recipient: " + to);
+            System.out.println("   Subject: " + subject);
+            System.out.flush();
+        } catch (Exception e) {
+            System.err.println("❌ ❌ ❌ FAILED TO SEND EMAIL ❌ ❌ ❌");
+            System.err.println("Recipient: " + to);
+            System.err.println("Subject: " + subject);
+            System.err.println("Error Type: " + e.getClass().getSimpleName());
+            System.err.println("Error Message: " + e.getMessage());
+            if (e.getCause() != null) {
+                System.err.println("Root Cause: " + e.getCause().getClass().getSimpleName() + " - " + e.getCause().getMessage());
+            }
+            System.err.println("Stack trace:");
+            e.printStackTrace();
+            System.err.flush();
+        }
+        System.out.println("========================================\n");
+        System.out.flush();
+    }
 
     public void sendEmail(String to, String subject, String body) {
         System.out.println("📧 [EmailService] sendEmail() called");
@@ -50,39 +149,27 @@ public class EmailService {
 
             System.out.println("📤 [EmailService] Creating and sending HTML email message...");
             
-            // Use MimeMessage for better email formatting and headers
             MimeMessage mimeMessage = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
             
-            // Set sender with professional name
             helper.setFrom("FarmTech Notifications <" + fromEmail + ">");
             helper.setReplyTo(fromEmail);
             helper.setTo(to);
             helper.setSubject(subject);
             
-            // Convert plain text to HTML with proper formatting
             String htmlBody = convertToHtml(body);
-            helper.setText(body, htmlBody);  // Set both plain text and HTML versions
+            helper.setText(body, htmlBody);
             
-            // Add comprehensive headers to improve deliverability and avoid spam filters
             mimeMessage.setHeader("X-Mailer", "FarmTech Equipment Rental System v1.0");
-            mimeMessage.setHeader("X-Priority", "3");  // Normal priority (1=High, 3=Normal, 5=Low)
+            mimeMessage.setHeader("X-Priority", "3");
             mimeMessage.setHeader("Importance", "Normal");
             mimeMessage.setHeader("X-MSMail-Priority", "Normal");
-            
-            // Transactional email headers
             mimeMessage.setHeader("X-Auto-Response-Suppress", "OOF, DR, RN, NRN, AutoReply");
             mimeMessage.setHeader("Precedence", "bulk");
             mimeMessage.setHeader("X-Entity-Ref-ID", "FarmTech-" + System.currentTimeMillis());
-            
-            // List management headers (required for commercial emails)
             mimeMessage.setHeader("List-Unsubscribe", "<mailto:" + fromEmail + "?subject=unsubscribe>");
             mimeMessage.setHeader("List-Unsubscribe-Post", "List-Unsubscribe=One-Click");
-            
-            // Content type headers
             mimeMessage.setHeader("X-Content-Type-Options", "nosniff");
-            
-            // Authentication and security headers
             mimeMessage.setHeader("X-Spam-Status", "No");
             mimeMessage.setHeader("X-Spam-Flag", "NO");
 
@@ -96,238 +183,546 @@ public class EmailService {
 
     public void sendBookingConfirmationToBooker(String to, String bookerName, String equipmentName, 
                                                  String startDate, Integer hours, Long bookingId) {
-        String subject = "Booking Confirmation - FarmTech Order #" + bookingId;
-        String body = String.format(
-            "Dear %s,\n\n" +
-            "Thank you for your booking request on FarmTech Equipment Rental Platform.\n\n" +
-            "Your booking has been successfully submitted and is now being processed.\n\n" +
-            "BOOKING DETAILS\n" +
-            "----------------------------------------\n" +
-            "Booking Reference: #%s\n" +
-            "Equipment Name: %s\n" +
-            "Start Date: %s\n" +
-            "Duration: %s hours\n" +
-            "Current Status: PENDING\n\n" +
-            "NEXT STEPS\n" +
-            "----------------------------------------\n" +
-            "Your booking request is being matched with available equipment owners.\n" +
-            "You will receive a confirmation email once an owner accepts your request.\n\n" +
-            "NEED HELP?\n" +
-            "----------------------------------------\n" +
-            "If you have questions about your booking, please contact our support team.\n\n" +
-            "Thank you for choosing FarmTech.\n\n" +
-            "Regards,\n" +
-            "FarmTech Support Team\n" +
-            "Equipment Rental Platform\n\n" +
-            "----------------------------------------\n" +
-            "This is an automated notification from FarmTech.\n" +
-            "This email was sent to: %s",
-            bookerName, bookingId, equipmentName, startDate, 
-            (hours != null ? hours : "N/A"), to
+        System.out.println("\n\n╔═══════════════════════════════════════════════════════════════╗");
+        System.out.println("║  📧 sendBookingConfirmationToBooker() METHOD CALLED             ║");
+        System.out.println("╚═══════════════════════════════════════════════════════════════╝");
+        System.out.println("To (Recipient Email): " + to);
+        System.out.println("Booker Name: " + bookerName);
+        System.out.println("Equipment Name: " + equipmentName);
+        System.out.println("Start Date: " + startDate);
+        System.out.println("Hours: " + hours);
+        System.out.println("Booking ID: " + bookingId);
+        System.out.println("Email Service Enabled: " + emailEnabled);
+        System.out.println("Mail Sender Initialized: " + (mailSender != null));
+        
+        System.out.println("\n✅ VALIDATION:");
+        System.out.println("   to is null: " + (to == null));
+        System.out.println("   to is blank: " + (to != null && to.isBlank()));
+        System.out.println("   equipmentName is null: " + (equipmentName == null));
+        System.out.println("   equipmentName is blank: " + (equipmentName != null && equipmentName.isBlank()));
+        System.out.println("   startDate is null: " + (startDate == null));
+        System.out.println("   startDate is blank: " + (startDate != null && startDate.isBlank()));
+        System.out.println("   hours is null: " + (hours == null));
+        System.out.flush();
+        
+        String subject = "Booking placed | Order #" + bookingId;
+        
+        String htmlBody = String.format(
+            "<!DOCTYPE html>" +
+            "<html>" +
+            "<head>" +
+            "<meta charset='UTF-8'>" +
+            "<meta name='viewport' content='width=device-width, initial-scale=1.0'>" +
+            "<style>" +
+            "* { margin: 0; padding: 0; box-sizing: border-box; }" +
+            "body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background: #f8f8f8; color: #1a1a1a; }" +
+            ".wrapper { max-width: 600px; margin: 0 auto; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }" +
+            ".header { background: linear-gradient(135deg, #EE7752 0%%, #FF5722 100%%); color: white; padding: 25px 20px; text-align: center; }" +
+            ".logo-text { font-size: 24px; font-weight: 700; margin-bottom: 5px; letter-spacing: -0.5px; }" +
+            ".logo-subtext { font-size: 13px; opacity: 0.95; font-weight: 500; }" +
+            ".greeting-section { background: #fff9f5; padding: 20px 25px; border-bottom: 1px solid #fce4d6; text-align: center; }" +
+            ".greeting-text { font-size: 13px; color: #666; line-height: 1.5; margin-bottom: 8px; }" +
+            ".greeting-link { color: #EE7752; text-decoration: none; font-weight: 600; }" +
+            ".content { padding: 30px 25px; }" +
+            ".status-message { font-size: 20px; font-weight: 600; color: #1a1a1a; margin-bottom: 8px; }" +
+            ".status-subtext { font-size: 14px; color: #666; margin-bottom: 25px; }" +
+            ".order-card { background: #f9f9f9; border: 1px solid #e8e8e8; border-radius: 8px; padding: 20px; margin: 25px 0; }" +
+            ".order-row { display: flex; justify-content: space-between; padding: 10px 0; font-size: 14px; }" +
+            ".order-label { color: #999; font-weight: 500; }" +
+            ".order-value { color: #1a1a1a; font-weight: 600; }" +
+            ".order-row:not(:last-child) { border-bottom: 1px solid #efefef; }" +
+            ".order-number-highlight { background: white; border: 2px solid #EE7752; border-radius: 8px; padding: 15px; text-align: center; margin: 20px 0; }" +
+            ".order-number-label { font-size: 11px; color: #999; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }" +
+            ".order-number { font-size: 28px; font-weight: 700; color: #EE7752; margin-top: 5px; font-family: 'Courier New', monospace; }" +
+            ".next-steps { background: #f9f9f9; border-left: 4px solid #EE7752; padding: 20px; border-radius: 4px; margin: 25px 0; }" +
+            ".next-steps-title { font-size: 15px; font-weight: 600; color: #1a1a1a; margin-bottom: 12px; }" +
+            ".next-steps-list { font-size: 13px; color: #555; line-height: 1.8; }" +
+            ".step-item { margin: 6px 0; }" +
+            ".cta-button { display: inline-block; width: 100%%; background: linear-gradient(135deg, #EE7752 0%%, #FF5722 100%%); color: white; text-decoration: none; padding: 14px; border-radius: 6px; font-weight: 600; font-size: 16px; text-align: center; margin: 25px 0; box-sizing: border-box; transition: opacity 0.2s; }" +
+            ".cta-button:hover { opacity: 0.95; }" +
+            ".footer-section { background: #f9f9f9; padding: 20px 25px; border-top: 1px solid #e8e8e8; text-align: center; }" +
+            ".footer-text { font-size: 12px; color: #999; line-height: 1.6; }" +
+            ".footer-link { color: #EE7752; text-decoration: none; }" +
+            ".divider { height: 1px; background: #e8e8e8; margin: 20px 0; }" +
+            "</style>" +
+            "</head>" +
+            "<body>" +
+            "<div class='wrapper'>" +
+            "<div class='header'>" +
+            "<div class='logo-text'>🚜 FarmTech</div>" +
+            "<div class='logo-subtext'>Equipment Rental Platform</div>" +
+            "</div>" +
+            "<div class='greeting-section'>" +
+            "<div class='greeting-text'>Greetings from FarmTech</div>" +
+            "<div class='greeting-text'>Your booking request has been placed! <a href='https://farmtech.app/bookings' class='greeting-link'>Rate your experience here</a></div>" +
+            "</div>" +
+            "<div class='content'>" +
+            "<div class='status-message'>Booking placed</div>" +
+            "<div class='status-subtext'>We're searching for the perfect equipment owner for you</div>" +
+            "<div class='order-number-highlight'>" +
+            "<div class='order-number-label'>Order Number</div>" +
+            "<div class='order-number'>#%s</div>" +
+            "</div>" +
+            "<div class='order-card'>" +
+            "<div class='order-row'>" +
+            "<span class='order-label'>Equipment</span>" +
+            "<span class='order-value'>%s</span>" +
+            "</div>" +
+            "<div class='order-row'>" +
+            "<span class='order-label'>Start Date</span>" +
+            "<span class='order-value'>%s</span>" +
+            "</div>" +
+            "<div class='order-row'>" +
+            "<span class='order-label'>Duration</span>" +
+            "<span class='order-value'>%s hours</span>" +
+            "</div>" +
+            "</div>" +
+            "<div class='next-steps'>" +
+            "<div class='next-steps-title'>What happens next?</div>" +
+            "<div class='next-steps-list'>" +
+            "<div class='step-item'>✅ We'll notify nearby equipment owners</div>" +
+            "<div class='step-item'>✅ Owners will review your booking</div>" +
+            "<div class='step-item'>✅ You'll get notified when someone accepts</div>" +
+            "<div class='step-item'>✅ Exchange details and finalize</div>" +
+            "</div>" +
+            "</div>" +
+            "<a href='https://farmtech.app/bookings' class='cta-button'>View Your Booking</a>" +
+            "<div class='next-steps'>" +
+            "<div class='next-steps-title'>Need Help?</div>" +
+            "<div class='next-steps-list'>" +
+            "Contact us: <a href='mailto:support@farmtech.com' class='footer-link'>support@farmtech.com</a>" +
+            "</div>" +
+            "</div>" +
+            "</div>" +
+            "<div class='footer-section'>" +
+            "<div class='footer-text'>This is an automated message from FarmTech</div>" +
+            "<div class='footer-text' style='margin-top: 8px;'>© 2024 FarmTech. All rights reserved.</div>" +
+            "</div>" +
+            "</div>" +
+            "</body>" +
+            "</html>",
+            bookingId, equipmentName, startDate, (hours != null ? hours : "N/A")
         );
         
-        sendEmail(to, subject, body);
+        System.out.println("\n📬 Generated HTML email body");
+        System.out.println("   Subject: " + subject);
+        System.out.println("   Recipient: " + to);
+        System.out.println("   HTML length: " + htmlBody.length() + " chars");
+        System.out.println("   Booking ID in body: " + (htmlBody.contains(bookingId.toString()) ? "✅ YES" : "❌ NO"));
+        System.out.println("   Equipment in body: " + (htmlBody.contains(equipmentName) ? "✅ YES" : "❌ NO"));
+        System.out.println("   Start date in body: " + (htmlBody.contains(startDate) ? "✅ YES" : "❌ NO"));
+        System.out.println("   Hours in body: " + (htmlBody.contains(String.valueOf(hours)) ? "✅ YES" : "❌ NO"));
+        System.out.println("   Calling sendEmailHtml() now...");
+        System.out.flush();
+        
+        sendEmailHtml(to, subject, htmlBody);
+        
+        System.out.println("✅ sendEmailHtml() completed for booking confirmation");
+        System.out.flush();
     }
 
     public void sendBookingAcceptanceToBooker(String to, String bookerName, String equipmentName, 
                                                String ownerName, String ownerPhone, Long bookingId) {
-        String subject = "Booking Confirmed - FarmTech Order #" + bookingId;
-        String body = String.format(
-            "Dear %s,\n\n" +
-            "Good news! Your booking request has been accepted by an equipment owner.\n\n" +
-            "BOOKING DETAILS\n" +
-            "----------------------------------------\n" +
-            "Booking Reference: #%s\n" +
-            "Equipment Name: %s\n" +
-            "Current Status: CONFIRMED\n\n" +
-            "OWNER CONTACT INFORMATION\n" +
-            "----------------------------------------\n" +
-            "Owner Name: %s\n" +
-            "Phone Number: %s\n\n" +
-            "NEXT STEPS\n" +
-            "----------------------------------------\n" +
-            "Please contact the owner to:\n" +
-            "- Confirm pickup/delivery time and location\n" +
-            "- Discuss any specific requirements\n" +
-            "- Finalize payment arrangements\n\n" +
-            "NEED HELP?\n" +
-            "----------------------------------------\n" +
-            "If you have questions, please contact our support team.\n\n" +
-            "Thank you for choosing FarmTech.\n\n" +
-            "Regards,\n" +
-            "FarmTech Support Team\n" +
-            "Equipment Rental Platform\n\n" +
-            "----------------------------------------\n" +
-            "This is an automated notification from FarmTech.\n" +
-            "This email was sent to: %s",
-            bookerName, bookingId, equipmentName, ownerName, ownerPhone, to
+        System.out.println("\n\n╔═══════════════════════════════════════════════════════════════╗");
+        System.out.println("║  📧 sendBookingAcceptanceToBooker() CALLED                       ║");
+        System.out.println("╚═══════════════════════════════════════════════════════════════╝");
+        System.out.println("To (Booker Email): " + to);
+        System.out.println("Booker Name: " + bookerName);
+        System.out.println("Equipment Name: " + equipmentName);
+        System.out.println("Owner Name (Accepter): " + ownerName);
+        System.out.println("Owner Phone: " + ownerPhone);
+        System.out.println("Booking ID: " + bookingId);
+        System.out.flush();
+        
+        String subject = "Booking accepted | Order #" + bookingId;
+        
+        String htmlBody = String.format(
+            "<!DOCTYPE html>" +
+            "<html>" +
+            "<head>" +
+            "<meta charset='UTF-8'>" +
+            "<meta name='viewport' content='width=device-width, initial-scale=1.0'>" +
+            "<style>" +
+            "* { margin: 0; padding: 0; box-sizing: border-box; }" +
+            "body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background: #f8f8f8; color: #1a1a1a; }" +
+            ".wrapper { max-width: 600px; margin: 0 auto; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }" +
+            ".header { background: linear-gradient(135deg, #10B981 0%%, #059669 100%%); color: white; padding: 25px 20px; text-align: center; }" +
+            ".logo-text { font-size: 24px; font-weight: 700; margin-bottom: 5px; letter-spacing: -0.5px; }" +
+            ".logo-subtext { font-size: 13px; opacity: 0.95; font-weight: 500; }" +
+            ".greeting-section { background: #f0fdf4; padding: 20px 25px; border-bottom: 1px solid #dcfce7; text-align: center; }" +
+            ".greeting-text { font-size: 13px; color: #666; line-height: 1.5; margin-bottom: 8px; }" +
+            ".greeting-link { color: #10B981; text-decoration: none; font-weight: 600; }" +
+            ".content { padding: 30px 25px; }" +
+            ".status-message { font-size: 20px; font-weight: 600; color: #1a1a1a; margin-bottom: 8px; }" +
+            ".status-subtext { font-size: 14px; color: #666; margin-bottom: 25px; }" +
+            ".owner-card { background: #f9f9f9; border: 1px solid #e8e8e8; border-radius: 8px; padding: 20px; margin: 25px 0; }" +
+            ".owner-label { font-size: 11px; color: #999; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }" +
+            ".owner-name { font-size: 22px; font-weight: 700; color: #1a1a1a; margin-bottom: 15px; }" +
+            ".contact-row { display: flex; align-items: center; margin: 8px 0; font-size: 14px; color: #555; }" +
+            ".contact-icon { margin-right: 10px; font-size: 16px; }" +
+            ".contact-value { font-weight: 600; color: #10B981; }" +
+            ".equipment-card { background: #f9f9f9; border: 1px solid #e8e8e8; border-radius: 8px; padding: 20px; margin: 25px 0; }" +
+            ".equipment-row { display: flex; justify-content: space-between; padding: 10px 0; font-size: 14px; }" +
+            ".equipment-label { color: #999; font-weight: 500; }" +
+            ".equipment-value { color: #1a1a1a; font-weight: 600; }" +
+            ".equipment-row:not(:last-child) { border-bottom: 1px solid #efefef; }" +
+            ".next-steps { background: #f9f9f9; border-left: 4px solid #10B981; padding: 20px; border-radius: 4px; margin: 25px 0; }" +
+            ".next-steps-title { font-size: 15px; font-weight: 600; color: #1a1a1a; margin-bottom: 12px; }" +
+            ".next-steps-list { font-size: 13px; color: #555; line-height: 1.8; }" +
+            ".step-item { margin: 6px 0; }" +
+            ".cta-button { display: inline-block; width: 100%%; background: linear-gradient(135deg, #10B981 0%%, #059669 100%%); color: white; text-decoration: none; padding: 14px; border-radius: 6px; font-weight: 600; font-size: 16px; text-align: center; margin: 25px 0; box-sizing: border-box; transition: opacity 0.2s; }" +
+            ".cta-button:hover { opacity: 0.95; }" +
+            ".footer-section { background: #f9f9f9; padding: 20px 25px; border-top: 1px solid #e8e8e8; text-align: center; }" +
+            ".footer-text { font-size: 12px; color: #999; line-height: 1.6; }" +
+            ".footer-link { color: #10B981; text-decoration: none; }" +
+            "</style>" +
+            "</head>" +
+            "<body>" +
+            "<div class='wrapper'>" +
+            "<div class='header'>" +
+            "<div class='logo-text'>🚜 FarmTech</div>" +
+            "<div class='logo-subtext'>Equipment Rental Platform</div>" +
+            "</div>" +
+            "<div class='greeting-section'>" +
+            "<div class='greeting-text'>Greetings from FarmTech</div>" +
+            "<div class='greeting-text'>Your booking has been accepted! <a href='https://farmtech.app/bookings' class='greeting-link'>Rate your experience here</a></div>" +
+            "</div>" +
+            "<div class='content'>" +
+            "<div class='status-message'>Booking accepted</div>" +
+            "<div class='status-subtext'>Connect with your equipment owner now</div>" +
+            "<div class='owner-card'>" +
+            "<div class='owner-label'>Equipment Owner</div>" +
+            "<div class='owner-name'>%s</div>" +
+            "<div class='contact-row'>" +
+            "<span class='contact-icon'>📞</span>" +
+            "<span class='contact-value'>%s</span>" +
+            "</div>" +
+            "</div>" +
+            "<div class='equipment-card'>" +
+            "<div class='equipment-row'>" +
+            "<span class='equipment-label'>Equipment</span>" +
+            "<span class='equipment-value'>%s</span>" +
+            "</div>" +
+            "<div class='equipment-row'>" +
+            "<span class='equipment-label'>Order Number</span>" +
+            "<span class='equipment-value'>#%s</span>" +
+            "</div>" +
+            "</div>" +
+            "<div class='next-steps'>" +
+            "<div class='next-steps-title'>What to do next</div>" +
+            "<div class='next-steps-list'>" +
+            "<div class='step-item'>✅ Call or message the owner to confirm details</div>" +
+            "<div class='step-item'>✅ Finalize pickup/delivery location and time</div>" +
+            "<div class='step-item'>✅ Confirm payment arrangements</div>" +
+            "<div class='step-item'>✅ Enjoy your rental!</div>" +
+            "</div>" +
+            "</div>" +
+            "<a href='https://farmtech.app/bookings' class='cta-button'>View Booking Details</a>" +
+            "<div class='next-steps'>" +
+            "<div class='next-steps-title'>Need Help?</div>" +
+            "<div class='next-steps-list'>" +
+            "Contact support: <a href='mailto:support@farmtech.com' class='footer-link'>support@farmtech.com</a>" +
+            "</div>" +
+            "</div>" +
+            "</div>" +
+            "<div class='footer-section'>" +
+            "<div class='footer-text'>This is an automated message from FarmTech</div>" +
+            "<div class='footer-text' style='margin-top: 8px;'>© 2024 FarmTech. All rights reserved.</div>" +
+            "</div>" +
+            "</div>" +
+            "</body>" +
+            "</html>",
+            ownerName, ownerPhone, equipmentName, bookingId
         );
         
-        sendEmail(to, subject, body);
+        System.out.println("\n📬 Generated acceptance email HTML");
+        System.out.println("   Subject: " + subject);
+        System.out.println("   Recipient: " + to);
+        System.out.println("   HTML length: " + htmlBody.length() + " chars");
+        System.out.println("   Owner name in body: " + (htmlBody.contains(ownerName) ? "✅ YES" : "❌ NO"));
+        System.out.println("   Owner phone in body: " + (htmlBody.contains(ownerPhone) ? "✅ YES" : "❌ NO"));
+        System.out.println("   Equipment in body: " + (htmlBody.contains(equipmentName) ? "✅ YES" : "❌ NO"));
+        System.out.println("   Booking ID in body: " + (htmlBody.contains(bookingId.toString()) ? "✅ YES" : "❌ NO"));
+        System.out.println("   Calling sendEmailHtml() now...");
+        System.out.flush();
+        
+        sendEmailHtml(to, subject, htmlBody);
+        
+        System.out.println("✅ sendEmailHtml() completed for booking acceptance");
+        System.out.flush();
     }
 
     public void sendBookingAcceptanceToOwner(String to, String ownerName, String equipmentName, 
                                               String bookerName, String bookerPhone, String bookerEmail,
                                               String location, String startDate, Integer hours, Long bookingId) {
-        String subject = "Booking Accepted - Renter Details for Order #" + bookingId;
-        String body = String.format(
-            "Dear %s,\n\n" +
-            "Thank you for accepting the booking request. Here are the renter details.\n\n" +
-            "BOOKING DETAILS\n" +
-            "----------------------------------------\n" +
-            "Booking Reference: #%s\n" +
-            "Equipment Name: %s\n" +
-            "Start Date: %s\n" +
-            "Duration: %s hours\n" +
-            "Location: %s\n\n" +
-            "RENTER CONTACT INFORMATION\n" +
-            "----------------------------------------\n" +
-            "Name: %s\n" +
-            "Phone: %s\n" +
-            "Email: %s\n\n" +
-            "NEXT STEPS\n" +
-            "----------------------------------------\n" +
-            "Please contact the renter to:\n" +
-            "- Confirm pickup/delivery time and location\n" +
-            "- Discuss equipment operation and safety guidelines\n" +
-            "- Finalize payment and rental terms\n\n" +
-            "NEED HELP?\n" +
-            "----------------------------------------\n" +
-            "If you have questions, please contact our support team.\n\n" +
-            "Thank you for being part of FarmTech.\n\n" +
-            "Regards,\n" +
-            "FarmTech Support Team\n" +
-            "Equipment Rental Platform\n\n" +
-            "----------------------------------------\n" +
-            "This is an automated notification from FarmTech.\n" +
-            "This email was sent to: %s",
-            ownerName, bookingId, equipmentName, startDate, 
-            (hours != null ? hours : "N/A"), 
-            (location != null && !location.isBlank() ? location : "Not specified"),
-            bookerName, bookerPhone, bookerEmail, to
+        String subject = "New rental request | Order #" + bookingId;
+        
+        String htmlBody = String.format(
+            "<!DOCTYPE html>" +
+            "<html>" +
+            "<head>" +
+            "<meta charset='UTF-8'>" +
+            "<meta name='viewport' content='width=device-width, initial-scale=1.0'>" +
+            "<style>" +
+            "* { margin: 0; padding: 0; box-sizing: border-box; }" +
+            "body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background: #f8f8f8; color: #1a1a1a; }" +
+            ".wrapper { max-width: 600px; margin: 0 auto; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }" +
+            ".header { background: linear-gradient(135deg, #8B5CF6 0%%, #7C3AED 100%%); color: white; padding: 25px 20px; text-align: center; }" +
+            ".logo-text { font-size: 24px; font-weight: 700; margin-bottom: 5px; letter-spacing: -0.5px; }" +
+            ".logo-subtext { font-size: 13px; opacity: 0.95; font-weight: 500; }" +
+            ".greeting-section { background: #faf5ff; padding: 20px 25px; border-bottom: 1px solid #f3e8ff; text-align: center; }" +
+            ".greeting-text { font-size: 13px; color: #666; line-height: 1.5; margin-bottom: 8px; }" +
+            ".greeting-link { color: #8B5CF6; text-decoration: none; font-weight: 600; }" +
+            ".content { padding: 30px 25px; }" +
+            ".status-message { font-size: 20px; font-weight: 600; color: #1a1a1a; margin-bottom: 8px; }" +
+            ".status-subtext { font-size: 14px; color: #666; margin-bottom: 25px; }" +
+            ".earning-banner { background: linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%%, rgba(124, 58, 237, 0.08) 100%%); border: 1px solid #e9d5ff; border-radius: 8px; padding: 20px; margin: 25px 0; text-align: center; }" +
+            ".earning-value { font-size: 28px; font-weight: 700; color: #8B5CF6; margin-bottom: 5px; }" +
+            ".earning-text { font-size: 13px; color: #666; }" +
+            ".renter-card { background: #f9f9f9; border: 1px solid #e8e8e8; border-radius: 8px; padding: 20px; margin: 25px 0; }" +
+            ".renter-label { font-size: 11px; color: #999; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }" +
+            ".renter-name { font-size: 22px; font-weight: 700; color: #1a1a1a; margin-bottom: 15px; }" +
+            ".contact-row { display: flex; align-items: center; margin: 8px 0; font-size: 14px; color: #555; }" +
+            ".contact-icon { margin-right: 10px; font-size: 16px; }" +
+            ".contact-value { font-weight: 600; color: #8B5CF6; }" +
+            ".equipment-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 25px 0; }" +
+            ".equipment-box { background: #f9f9f9; border: 1px solid #e8e8e8; border-radius: 8px; padding: 15px; }" +
+            ".equipment-label { font-size: 11px; color: #999; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }" +
+            ".equipment-value { font-size: 16px; font-weight: 700; color: #1a1a1a; }" +
+            ".action-items { background: #f9f9f9; border-left: 4px solid #8B5CF6; padding: 20px; border-radius: 4px; margin: 25px 0; }" +
+            ".action-title { font-size: 15px; font-weight: 600; color: #1a1a1a; margin-bottom: 12px; }" +
+            ".action-list { font-size: 13px; color: #555; line-height: 1.8; }" +
+            ".action-item { margin: 6px 0; }" +
+            ".cta-button { display: inline-block; width: 100%%; background: linear-gradient(135deg, #8B5CF6 0%%, #7C3AED 100%%); color: white; text-decoration: none; padding: 14px; border-radius: 6px; font-weight: 600; font-size: 16px; text-align: center; margin: 25px 0; box-sizing: border-box; transition: opacity 0.2s; }" +
+            ".cta-button:hover { opacity: 0.95; }" +
+            ".footer-section { background: #f9f9f9; padding: 20px 25px; border-top: 1px solid #e8e8e8; text-align: center; }" +
+            ".footer-text { font-size: 12px; color: #999; line-height: 1.6; }" +
+            ".footer-link { color: #8B5CF6; text-decoration: none; }" +
+            "</style>" +
+            "</head>" +
+            "<body>" +
+            "<div class='wrapper'>" +
+            "<div class='header'>" +
+            "<div class='logo-text'>🚜 FarmTech</div>" +
+            "<div class='logo-subtext'>Equipment Rental Platform</div>" +
+            "</div>" +
+            "<div class='greeting-section'>" +
+            "<div class='greeting-text'>Greetings from FarmTech</div>" +
+            "<div class='greeting-text'>You have a new rental request! <a href='https://farmtech.app/owner-requests' class='greeting-link'>Rate your experience here</a></div>" +
+            "</div>" +
+            "<div class='content'>" +
+            "<div class='status-message'>New rental income! 💰</div>" +
+            "<div class='status-subtext'>Someone wants to rent your equipment</div>" +
+            "<div class='earning-banner'>" +
+            "<div class='earning-value'>%s Hours</div>" +
+            "<div class='earning-text'>Rental period available</div>" +
+            "</div>" +
+            "<div class='renter-card'>" +
+            "<div class='renter-label'>Renter Information</div>" +
+            "<div class='renter-name'>%s</div>" +
+            "<div class='contact-row'>" +
+            "<span class='contact-icon'>📞</span>" +
+            "<span class='contact-value'>%s</span>" +
+            "</div>" +
+            "<div class='contact-row'>" +
+            "<span class='contact-icon'>📧</span>" +
+            "<span>%s</span>" +
+            "</div>" +
+            "</div>" +
+            "<div class='equipment-grid'>" +
+            "<div class='equipment-box'>" +
+            "<div class='equipment-label'>Equipment</div>" +
+            "<div class='equipment-value'>%s</div>" +
+            "</div>" +
+            "<div class='equipment-box'>" +
+            "<div class='equipment-label'>Start Date</div>" +
+            "<div class='equipment-value'>%s</div>" +
+            "</div>" +
+            "<div class='equipment-box'>" +
+            "<div class='equipment-label'>Duration</div>" +
+            "<div class='equipment-value'>%s hours</div>" +
+            "</div>" +
+            "<div class='equipment-box'>" +
+            "<div class='equipment-label'>Location</div>" +
+            "<div class='equipment-value'>%s</div>" +
+            "</div>" +
+            "</div>" +
+            "<div class='action-items'>" +
+            "<div class='action-title'>Your Action Items</div>" +
+            "<div class='action-list'>" +
+            "<div class='action-item'>1. Contact renter to confirm details</div>" +
+            "<div class='action-item'>2. Discuss pickup/delivery arrangements</div>" +
+            "<div class='action-item'>3. Confirm payment and rental terms</div>" +
+            "<div class='action-item'>4. Complete the rental</div>" +
+            "</div>" +
+            "</div>" +
+            "<a href='https://farmtech.app/owner-requests' class='cta-button'>View Full Details</a>" +
+            "<div class='action-items'>" +
+            "<div class='action-title'>Need Support?</div>" +
+            "<div class='action-list'>" +
+            "Contact us: <a href='mailto:support@farmtech.com' class='footer-link'>support@farmtech.com</a>" +
+            "</div>" +
+            "</div>" +
+            "</div>" +
+            "<div class='footer-section'>" +
+            "<div class='footer-text'>This is an automated message from FarmTech</div>" +
+            "<div class='footer-text' style='margin-top: 8px;'>© 2024 FarmTech. All rights reserved.</div>" +
+            "</div>" +
+            "</div>" +
+            "</body>" +
+            "</html>",
+            (hours != null ? hours : "N/A"), bookerName, bookerPhone, bookerEmail, equipmentName,
+            startDate, (hours != null ? hours : "N/A"),
+            (location != null && !location.isBlank() ? location : "To be confirmed")
         );
         
-        sendEmail(to, subject, body);
+        sendEmailHtml(to, subject, htmlBody);
+    }
+
+    public void sendBookingRequestToOwner(String to, String ownerName, String equipmentName, 
+                                          String bookerName, String bookerPhone, String bookerEmail,
+                                          String location, String startDate, Integer hours, Long bookingId) {
+        String subject = "New booking request | Order #" + bookingId;
+        
+        String htmlBody = String.format(
+            "<!DOCTYPE html>" +
+            "<html>" +
+            "<head>" +
+            "<meta charset='UTF-8'>" +
+            "<meta name='viewport' content='width=device-width, initial-scale=1.0'>" +
+            "<style>" +
+            "* { margin: 0; padding: 0; box-sizing: border-box; }" +
+            "body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background: #f8f8f8; color: #1a1a1a; }" +
+            ".wrapper { max-width: 600px; margin: 0 auto; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }" +
+            ".header { background: linear-gradient(135deg, #8B5CF6 0%%, #7C3AED 100%%); color: white; padding: 25px 20px; text-align: center; }" +
+            ".logo-text { font-size: 24px; font-weight: 700; margin-bottom: 5px; letter-spacing: -0.5px; }" +
+            ".logo-subtext { font-size: 13px; opacity: 0.95; font-weight: 500; }" +
+            ".greeting-section { background: #faf5ff; padding: 20px 25px; border-bottom: 1px solid #f3e8ff; text-align: center; }" +
+            ".greeting-text { font-size: 13px; color: #666; line-height: 1.5; margin-bottom: 8px; }" +
+            ".greeting-link { color: #8B5CF6; text-decoration: none; font-weight: 600; }" +
+            ".content { padding: 30px 25px; }" +
+            ".status-message { font-size: 20px; font-weight: 600; color: #1a1a1a; margin-bottom: 8px; }" +
+            ".status-subtext { font-size: 14px; color: #666; margin-bottom: 25px; }" +
+            ".alert-banner { background: linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%%, rgba(124, 58, 237, 0.08) 100%%); border: 1px solid #e9d5ff; border-radius: 8px; padding: 20px; margin: 25px 0; text-align: center; }" +
+            ".alert-value { font-size: 28px; font-weight: 700; color: #8B5CF6; margin-bottom: 5px; }" +
+            ".alert-text { font-size: 13px; color: #666; }" +
+            ".booker-card { background: #f9f9f9; border: 1px solid #e8e8e8; border-radius: 8px; padding: 20px; margin: 25px 0; }" +
+            ".booker-label { font-size: 11px; color: #999; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }" +
+            ".booker-name { font-size: 22px; font-weight: 700; color: #1a1a1a; margin-bottom: 15px; }" +
+            ".contact-row { display: flex; align-items: center; margin: 8px 0; font-size: 14px; color: #555; }" +
+            ".contact-icon { margin-right: 10px; font-size: 16px; }" +
+            ".contact-value { font-weight: 600; color: #8B5CF6; }" +
+            ".details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 25px 0; }" +
+            ".details-box { background: #f9f9f9; border: 1px solid #e8e8e8; border-radius: 8px; padding: 15px; }" +
+            ".details-label { font-size: 11px; color: #999; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }" +
+            ".details-value { font-size: 16px; font-weight: 700; color: #1a1a1a; }" +
+            ".action-items { background: #f9f9f9; border-left: 4px solid #8B5CF6; padding: 20px; border-radius: 4px; margin: 25px 0; }" +
+            ".action-title { font-size: 15px; font-weight: 600; color: #1a1a1a; margin-bottom: 12px; }" +
+            ".action-list { font-size: 13px; color: #555; line-height: 1.8; }" +
+            ".action-item { margin: 6px 0; }" +
+            ".cta-button { display: inline-block; width: 100%%; background: linear-gradient(135deg, #8B5CF6 0%%, #7C3AED 100%%); color: white; text-decoration: none; padding: 14px; border-radius: 6px; font-weight: 600; font-size: 16px; text-align: center; margin: 25px 0; box-sizing: border-box; transition: opacity 0.2s; }" +
+            ".cta-button:hover { opacity: 0.95; }" +
+            ".footer-section { background: #f9f9f9; padding: 20px 25px; border-top: 1px solid #e8e8e8; text-align: center; }" +
+            ".footer-text { font-size: 12px; color: #999; line-height: 1.6; }" +
+            ".footer-link { color: #8B5CF6; text-decoration: none; }" +
+            "</style>" +
+            "</head>" +
+            "<body>" +
+            "<div class='wrapper'>" +
+            "<div class='header'>" +
+            "<div class='logo-text'>🚜 FarmTech</div>" +
+            "<div class='logo-subtext'>Equipment Rental Platform</div>" +
+            "</div>" +
+            "<div class='greeting-section'>" +
+            "<div class='greeting-text'>Greetings from FarmTech</div>" +
+            "<div class='greeting-text'>Someone wants to rent your equipment! <a href='https://farmtech.app/owner-bookings' class='greeting-link'>Review requests here</a></div>" +
+            "</div>" +
+            "<div class='content'>" +
+            "<div class='status-message'>New booking request received</div>" +
+            "<div class='status-subtext'>Someone is interested in renting your equipment</div>" +
+            "<div class='alert-banner'>" +
+            "<div class='alert-value'>📋 Order #%s</div>" +
+            "<div class='alert-text'>New rental request waiting for your approval</div>" +
+            "</div>" +
+            "<div class='booker-card'>" +
+            "<div class='booker-label'>Interested Renter</div>" +
+            "<div class='booker-name'>%s</div>" +
+            "<div class='contact-row'>" +
+            "<span class='contact-icon'>📞</span>" +
+            "<span class='contact-value'>%s</span>" +
+            "</div>" +
+            "<div class='contact-row'>" +
+            "<span class='contact-icon'>📧</span>" +
+            "<span>%s</span>" +
+            "</div>" +
+            "</div>" +
+            "<div class='details-grid'>" +
+            "<div class='details-box'>" +
+            "<div class='details-label'>Equipment</div>" +
+            "<div class='details-value'>%s</div>" +
+            "</div>" +
+            "<div class='details-box'>" +
+            "<div class='details-label'>Start Date</div>" +
+            "<div class='details-value'>%s</div>" +
+            "</div>" +
+            "<div class='details-box'>" +
+            "<div class='details-label'>Duration</div>" +
+            "<div class='details-value'>%s hours</div>" +
+            "</div>" +
+            "<div class='details-box'>" +
+            "<div class='details-label'>Location</div>" +
+            "<div class='details-value'>%s</div>" +
+            "</div>" +
+            "</div>" +
+            "<div class='action-items'>" +
+            "<div class='action-title'>Next Steps</div>" +
+            "<div class='action-list'>" +
+            "<div class='action-item'>✅ Review the booking details</div>" +
+            "<div class='action-item'>✅ Contact the renter to confirm availability</div>" +
+            "<div class='action-item'>✅ Accept or decline the booking request</div>" +
+            "<div class='action-item'>✅ Arrange pickup/delivery and payment</div>" +
+            "</div>" +
+            "</div>" +
+            "<a href='https://farmtech.app/owner-bookings' class='cta-button'>Review Request Now</a>" +
+            "<div class='action-items'>" +
+            "<div class='action-title'>Need Help?</div>" +
+            "<div class='action-list'>" +
+            "Contact us: <a href='mailto:support@farmtech.com' class='footer-link'>support@farmtech.com</a>" +
+            "</div>" +
+            "</div>" +
+            "</div>" +
+            "<div class='footer-section'>" +
+            "<div class='footer-text'>This is an automated message from FarmTech</div>" +
+            "<div class='footer-text' style='margin-top: 8px;'>© 2024 FarmTech. All rights reserved.</div>" +
+            "</div>" +
+            "</div>" +
+            "</body>" +
+            "</html>",
+            bookingId, bookerName, bookerPhone, bookerEmail, equipmentName,
+            startDate, (hours != null ? hours : "N/A"),
+            (location != null && !location.isBlank() ? location : "To be confirmed")
+        );
+        
+        sendEmailHtml(to, subject, htmlBody);
     }
     
-    /**
-     * Convert plain text email to HTML format for better deliverability
-     * Uses professional email template with anti-spam best practices
-     */
     private String convertToHtml(String plainText) {
         StringBuilder html = new StringBuilder();
         
-        // Professional HTML email template with proper DOCTYPE
         html.append("<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">");
-        html.append("<html xmlns=\"http://www.w3.org/1999/xhtml\">");
-        html.append("<head>");
-        html.append("<meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />");
-        html.append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"/>");
-        html.append("<title>FarmTech Notification</title>");
-        html.append("<style type=\"text/css\">");
-        html.append("body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }");
-        html.append("table { border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }");
-        html.append("img { border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }");
-        html.append(".wrapper { width: 100%; background-color: #f4f4f4; padding: 20px 0; }");
-        html.append(".container { max-width: 600px; margin: 0 auto; background-color: #ffffff; }");
-        html.append(".header { background-color: #2c5f2d; color: #ffffff; padding: 20px; text-align: center; }");
-        html.append(".content { padding: 30px; color: #333333; line-height: 1.6; }");
-        html.append(".section { background-color: #f9f9f9; border-left: 4px solid #4a7c4e; padding: 15px; margin: 20px 0; }");
-        html.append(".section-title { color: #2c5f2d; font-size: 16px; font-weight: bold; margin: 0 0 10px 0; }");
-        html.append(".info-row { padding: 5px 0; }");
-        html.append(".footer { background-color: #f4f4f4; padding: 20px; text-align: center; font-size: 12px; color: #666666; }");
-        html.append("</style>");
-        html.append("</head>");
-        html.append("<body style=\"margin: 0; padding: 0;\">");
+        html.append("<html><head><meta http-equiv='Content-Type' content='text/html; charset=UTF-8'>");
+        html.append("<style>body { font-family: Arial, sans-serif; }</style></head><body>");
         
-        // Wrapper table for email client compatibility
-        html.append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" class=\"wrapper\">");
-        html.append("<tr><td align=\"center\">");
-        
-        // Main container
-        html.append("<table role=\"presentation\" width=\"600\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" class=\"container\">");
-        
-        // Header
-        html.append("<tr><td class=\"header\">");
-        html.append("<h1 style=\"margin: 0; font-size: 24px; font-weight: normal;\">FarmTech</h1>");
-        html.append("<p style=\"margin: 5px 0 0 0; font-size: 14px;\">Equipment Rental Platform</p>");
-        html.append("</td></tr>");
-        
-        // Content
-        html.append("<tr><td class=\"content\">");
-        
-        // Parse plain text content
-        String[] lines = plainText.split("\n");
-        boolean inSection = false;
-        String currentSectionTitle = "";
-        
-        for (String line : lines) {
-            line = line.trim();
-            
-            if (line.isEmpty()) {
-                if (inSection) {
-                    html.append("</div>");
-                    inSection = false;
-                }
-                continue;
-            }
-            
-            // Skip separator lines
-            if (line.contains("----------------------------------------")) {
-                continue;
-            }
-            
-            // Detect section headers (all caps)
-            if (line.matches("^[A-Z][A-Z ]+$") && line.length() > 5) {
-                if (inSection) {
-                    html.append("</div>");
-                }
-                currentSectionTitle = line;
-                html.append("<div class=\"section\">");
-                html.append("<div class=\"section-title\">").append(line).append("</div>");
-                inSection = true;
-            }
-            // Footer detection
-            else if (line.startsWith("This is an automated") || line.startsWith("This email was sent to:")) {
-                if (inSection) {
-                    html.append("</div>");
-                    inSection = false;
-                }
-                // Footer will be added separately
-            }
-            // Regular content
-            else {
-                String escapedLine = line.replace("<", "&lt;").replace(">", "&gt;");
-                
-                // Check if it's a key-value pair (contains colon)
-                if (escapedLine.contains(":") && !escapedLine.endsWith(":")) {
-                    html.append("<div class=\"info-row\"><strong>");
-                    String[] parts = escapedLine.split(":", 2);
-                    html.append(parts[0]).append(":</strong> ");
-                    if (parts.length > 1) {
-                        html.append(parts[1].trim());
-                    }
-                    html.append("</div>");
+        if (plainText != null) {
+            String[] lines = plainText.split("\n");
+            for (String line : lines) {
+                if (line.trim().isEmpty()) {
+                    html.append("<p></p>");
                 } else {
-                    html.append("<p style=\"margin: 10px 0;\">").append(escapedLine).append("</p>");
+                    html.append("<p>").append(line).append("</p>");
                 }
             }
         }
-        
-        if (inSection) {
-            html.append("</div>");
-        }
-        
-        html.append("</td></tr>");
-        
-        // Footer
-        html.append("<tr><td class=\"footer\">");
-        html.append("<p style=\"margin: 0 0 10px 0;\">This is an automated notification from FarmTech Equipment Rental Platform.</p>");
-        html.append("<p style=\"margin: 0;\">© 2024 FarmTech. All rights reserved.</p>");
-        html.append("</td></tr>");
-        
-        html.append("</table>");
-        html.append("</td></tr></table>");
         
         html.append("</body></html>");
         return html.toString();

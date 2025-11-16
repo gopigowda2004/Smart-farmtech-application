@@ -218,13 +218,13 @@ public class ChatbotDataController {
     private ResponseEntity<?> cancelBooking(Map<String, Object> request, User user) {
         Long bookingId = Long.parseLong(request.get("bookingId").toString());
         Optional<Booking> bookingOpt = bookingRepository.findById(bookingId);
-        
+
         if (bookingOpt.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Booking not found"));
         }
-        
+
         Booking booking = bookingOpt.get();
-        
+
         // Verify ownership
         if (!booking.getRenter().getId().equals(user.getId())) {
             Optional<Farmer> farmerOpt = farmerRepository.findByPhone(user.getPhone());
@@ -232,10 +232,15 @@ public class ChatbotDataController {
                 return ResponseEntity.badRequest().body(Map.of("error", "You don't have permission to cancel this booking"));
             }
         }
-        
+
+        // Check if booking can be cancelled (only before acceptance)
+        if ("CONFIRMED".equals(booking.getStatus()) || "ACTIVE".equals(booking.getStatus()) || "COMPLETED".equals(booking.getStatus())) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Cannot cancel booking after it has been accepted by an owner"));
+        }
+
         booking.setStatus("CANCELLED");
         bookingRepository.save(booking);
-        
+
         return ResponseEntity.ok(Map.of(
             "success", true,
             "message", "Booking cancelled successfully",

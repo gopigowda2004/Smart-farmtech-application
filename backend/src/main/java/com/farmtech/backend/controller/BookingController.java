@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/bookings")
@@ -76,6 +77,11 @@ public class BookingController {
         Equipment equipment = equipmentRepo.findById(equipmentId)
                 .orElseThrow(() -> new RuntimeException("Equipment not found"));
         
+        // Verify equipment owner has email
+        if (equipment.getOwner() == null || equipment.getOwner().getEmail() == null || equipment.getOwner().getEmail().isBlank()) {
+            throw new RuntimeException("Equipment owner does not have a valid email. Owner email is required for booking notifications.");
+        }
+        
         // 🔍 Support both User and Farmer entities for dual authentication
         Farmer renter = null;
         
@@ -87,6 +93,10 @@ public class BookingController {
             User user = userRepo.findById(renterId).orElse(null);
             
             if (user != null) {
+                if (user.getEmail() == null || user.getEmail().isBlank()) {
+                    throw new RuntimeException("User ID: " + renterId + " does not have a valid email. Email is required for booking.");
+                }
+                
                 // User exists, check if they have a corresponding Farmer record
                 renter = farmerRepo.findByPhone(user.getPhone()).orElse(null);
                 
@@ -101,6 +111,7 @@ public class BookingController {
                     // Note: latitude/longitude will be null initially
                     renter = farmerRepo.save(newFarmer);
                     System.out.println("✅ Created new Farmer record for User ID: " + user.getId() + " -> Farmer ID: " + renter.getId());
+                    System.out.println("   Email: " + renter.getEmail());
                 }
             }
         }
@@ -108,6 +119,11 @@ public class BookingController {
         // If still null, throw error
         if (renter == null) {
             throw new RuntimeException("Renter not found with ID: " + renterId);
+        }
+        
+        // Verify renter has email
+        if (renter.getEmail() == null || renter.getEmail().isBlank()) {
+            throw new RuntimeException("Renter ID: " + renterId + " does not have a valid email. Email is required for booking confirmation.");
         }
 
         Booking booking = new Booking();
@@ -146,6 +162,8 @@ public class BookingController {
         System.out.println("💾 Booking saved with ID: " + saved.getId());
         System.out.println("   Saved latitude: " + saved.getLocationLatitude());
         System.out.println("   Saved longitude: " + saved.getLocationLongitude());
+        System.out.println("   Renter from saved booking: " + saved.getRenter().getId());
+        System.out.println("   Renter email from saved booking: " + saved.getRenter().getEmail());
 
         // create candidate list for other nearby owners
         createCandidateEntries(saved);
@@ -164,15 +182,28 @@ public class BookingController {
 
         // Send email notification to booker
         try {
+            System.out.println("\n\n╔════════════════════════════════════════════════════════════╗");
+            System.out.println("║  📧 ATTEMPTING TO SEND BOOKING CONFIRMATION EMAIL TO RENTER  ║");
+            System.out.println("╚════════════════════════════════════════════════════════════╝");
+            
             String renterEmail = renter.getEmail();
             String renterName = renter.getName();
-            System.out.println("📧 [BookingController] Attempting to send booking confirmation email...");
-            System.out.println("   Renter Email: " + renterEmail);
-            System.out.println("   Renter Name: " + renterName);
-            System.out.println("   Equipment: " + equipment.getName());
-            System.out.println("   Booking ID: " + saved.getId());
+            System.out.println("Renter ID: " + renter.getId());
+            System.out.println("Renter Name: " + renterName);
+            System.out.println("Renter Email: " + renterEmail);
+            System.out.println("Equipment: " + equipment.getName());
+            System.out.println("Booking ID: " + saved.getId());
+            System.out.println("Start Date: " + startDate);
+            System.out.println("Hours: " + hours);
+            System.out.flush();
             
-            if (renterEmail != null && !renterEmail.isBlank()) {
+            if (renterEmail == null || renterEmail.isBlank()) {
+                System.out.println("❌ ERROR: Renter email is NULL/BLANK - cannot send booking confirmation");
+                System.out.println("====================================================\n");
+                System.out.flush();
+            } else {
+                System.out.println("✅ Email is valid, calling emailService.sendBookingConfirmationToBooker()...");
+                System.out.flush();
                 emailService.sendBookingConfirmationToBooker(
                     renterEmail, 
                     renterName, 
@@ -181,12 +212,50 @@ public class BookingController {
                     hours, 
                     saved.getId()
                 );
-                System.out.println("✅ [BookingController] Email service called successfully");
-            } else {
-                System.out.println("⚠️ [BookingController] Renter email is null or blank - skipping email");
+                System.out.println("✅✅✅ Email service method returned successfully");
+                System.out.println("====================================================\n");
+                System.out.flush();
             }
         } catch (Exception e) {
-            System.err.println("❌ [BookingController] Failed to send booking confirmation email: " + e.getMessage());
+            System.err.println("\n❌ ❌ ❌ EXCEPTION IN EMAIL SENDING ❌ ❌ ❌");
+            System.err.println("Exception Type: " + e.getClass().getName());
+            System.err.println("Message: " + e.getMessage());
+            System.err.println("Stack trace:");
+            e.printStackTrace();
+            System.err.flush();
+        }
+
+        // Send email notification to equipment owner
+        try {
+            Farmer owner = equipment.getOwner();
+            String ownerEmail = owner.getEmail();
+            String ownerName = owner.getName();
+            System.out.println("📧 [BookingController] Attempting to send new booking request email to owner...");
+            System.out.println("   Owner Email: " + ownerEmail);
+            System.out.println("   Owner Name: " + ownerName);
+            System.out.println("   Renter: " + renter.getName());
+            System.out.println("   Equipment: " + equipment.getName());
+            System.out.println("   Booking ID: " + saved.getId());
+            
+            if (ownerEmail == null || ownerEmail.isBlank()) {
+                System.out.println("❌ ERROR: Owner email is NULL/BLANK - cannot send owner notification");
+            } else {
+                emailService.sendBookingRequestToOwner(
+                    ownerEmail,
+                    ownerName,
+                    equipment.getName(),
+                    renter.getName(),
+                    renter.getPhone(),
+                    renter.getEmail(),
+                    location,
+                    startDate,
+                    hours,
+                    saved.getId()
+                );
+                System.out.println("✅ [BookingController] Owner notification email sent successfully");
+            }
+        } catch (Exception e) {
+            System.err.println("❌ [BookingController] Failed to send owner notification email: " + e.getMessage());
             e.printStackTrace();
         }
 
@@ -396,14 +465,20 @@ public class BookingController {
     public Booking updateStatus(@PathVariable Long bookingId, @RequestParam String status) {
         Booking b = bookingRepo.findById(bookingId)
                 .orElseThrow(() -> new RuntimeException("Booking not found"));
+
+        // Check if trying to cancel an already accepted booking
+        if ("CANCELLED".equals(status) && ("CONFIRMED".equals(b.getStatus()) || "ACTIVE".equals(b.getStatus()) || "COMPLETED".equals(b.getStatus()))) {
+            throw new RuntimeException("Cannot cancel booking after it has been accepted by an owner");
+        }
+
         b.setStatus(status);
-        
+
         // If confirming, set the accepted owner to current user
         if ("CONFIRMED".equals(status)) {
             // Note: In a real app, you'd get the current user from authentication
             // For now, we'll set it when the frontend provides the owner ID
         }
-        
+
         return bookingRepo.save(b);
     }
     
@@ -454,21 +529,51 @@ public class BookingController {
             
             // Send email notification to the booker (renter)
             try {
+                System.out.println("\n\n╔═════════════════════════════════════════════════════════════╗");
+                System.out.println("║  📧 BOOKING ACCEPTANCE EMAIL - SENDING TO RENTER             ║");
+                System.out.println("╚═════════════════════════════════════════════════════════════╝");
+                
                 Farmer renter = booking.getRenter();
                 String renterEmail = renter.getEmail();
+                String renterName = renter.getName();
+                
+                System.out.println("Renter Email: " + renterEmail);
+                System.out.println("Renter Name: " + renterName);
+                System.out.println("Equipment: " + booking.getEquipment().getName());
+                System.out.println("Accepted by Owner: " + acceptingOwner.getName());
+                System.out.println("Owner Phone: " + acceptingOwner.getPhone());
+                System.out.println("Owner Email: " + acceptingOwner.getEmail());
+                System.out.println("Booking ID: " + booking.getId());
+                System.out.flush();
+                
                 if (renterEmail != null && !renterEmail.isBlank()) {
+                    System.out.println("✅ Renter email is valid, sending acceptance notification...");
+                    System.out.flush();
+                    
                     emailService.sendBookingAcceptanceToBooker(
                         renterEmail,
-                        renter.getName(),
+                        renterName,
                         booking.getEquipment().getName(),
                         acceptingOwner.getName(),
                         acceptingOwner.getPhone(),
                         booking.getId()
                     );
-                    System.out.println("📧 Sent acceptance email to booker: " + renterEmail);
+                    
+                    System.out.println("✅ Acceptance email sent successfully to: " + renterEmail);
+                    System.out.println("=====================================================\n");
+                    System.out.flush();
+                } else {
+                    System.out.println("❌ ERROR: Renter email is NULL/BLANK - cannot send acceptance email");
+                    System.out.println("=====================================================\n");
+                    System.out.flush();
                 }
             } catch (Exception e) {
-                System.err.println("Failed to send acceptance email to booker: " + e.getMessage());
+                System.err.println("\n❌ ❌ ❌ EXCEPTION SENDING ACCEPTANCE EMAIL ❌ ❌ ❌");
+                System.err.println("Exception Type: " + e.getClass().getName());
+                System.err.println("Message: " + e.getMessage());
+                System.err.println("Stack trace:");
+                e.printStackTrace();
+                System.err.flush();
             }
             
             // Send email notification to the owner who accepted
@@ -690,6 +795,150 @@ public class BookingController {
         } catch (Exception e) {
             // Default to 30 minutes if parsing fails
             return now.plusMinutes(30);
+        }
+    }
+
+    // ============================================================================
+    // SECURE ENDPOINTS - WITH OWNERSHIP VALIDATION
+    // ============================================================================
+
+    @GetMapping("/my-bookings")
+    public Map<String, Object> getMyBookings(@RequestParam Long userId) {
+        System.out.println("=== FETCHING MY BOOKINGS (WITH VALIDATION) ===");
+        System.out.println("User ID: " + userId);
+        
+        Long actualFarmerId = userId;
+        User user = userRepo.findById(userId).orElse(null);
+        
+        if (user != null) {
+            Farmer farmer = farmerRepo.findByPhone(user.getPhone()).orElse(null);
+            if (farmer != null) {
+                actualFarmerId = farmer.getId();
+            }
+        }
+        
+        List<Booking> bookings = bookingRepo.findByRenterId(actualFarmerId);
+        
+        System.out.println("✅ Fetched " + bookings.size() + " bookings for user " + userId);
+        System.out.println("📋 Booking IDs: " + bookings.stream().map(Booking::getId).collect(Collectors.toList()));
+        
+        Map<String, Object> response = new java.util.HashMap<>();
+        response.put("totalBookings", bookings.size());
+        response.put("bookings", bookings);
+        response.put("userId", userId);
+        response.put("farmerId", actualFarmerId);
+        
+        return response;
+    }
+
+    @GetMapping("/my-owner-bookings")
+    public Map<String, Object> getMyOwnerBookings(@RequestParam Long userId) {
+        System.out.println("=== FETCHING MY OWNER BOOKINGS (WITH VALIDATION) ===");
+        System.out.println("User ID: " + userId);
+        
+        Long actualFarmerId = userId;
+        User user = userRepo.findById(userId).orElse(null);
+        
+        if (user != null) {
+            Farmer farmer = farmerRepo.findByPhone(user.getPhone()).orElse(null);
+            if (farmer != null) {
+                actualFarmerId = farmer.getId();
+            }
+        }
+        
+        List<Booking> bookings = bookingRepo.findByOwnerId(actualFarmerId);
+        
+        System.out.println("✅ Fetched " + bookings.size() + " owner bookings for user " + userId);
+        System.out.println("📋 Booking IDs: " + bookings.stream().map(Booking::getId).collect(Collectors.toList()));
+        
+        Map<String, Object> response = new java.util.HashMap<>();
+        response.put("totalBookings", bookings.size());
+        response.put("bookings", bookings);
+        response.put("userId", userId);
+        response.put("farmerId", actualFarmerId);
+        
+        return response;
+    }
+
+    @GetMapping("/my-confirmed-bookings")
+    public Map<String, Object> getMyConfirmedBookings(@RequestParam Long userId) {
+        System.out.println("=== FETCHING MY CONFIRMED BOOKINGS (WITH VALIDATION) ===");
+        System.out.println("User ID: " + userId);
+        
+        Long actualFarmerId = userId;
+        User user = userRepo.findById(userId).orElse(null);
+        
+        if (user != null) {
+            Farmer farmer = farmerRepo.findByPhone(user.getPhone()).orElse(null);
+            if (farmer != null) {
+                actualFarmerId = farmer.getId();
+            }
+        }
+        
+        List<Booking> bookings = bookingRepo.findByRenterIdAndStatus(actualFarmerId, "CONFIRMED");
+        
+        System.out.println("✅ Fetched " + bookings.size() + " confirmed bookings for user " + userId);
+        System.out.println("📋 Booking IDs: " + bookings.stream().map(Booking::getId).collect(Collectors.toList()));
+        
+        Map<String, Object> response = new java.util.HashMap<>();
+        response.put("totalConfirmedBookings", bookings.size());
+        response.put("bookings", bookings);
+        response.put("userId", userId);
+        response.put("farmerId", actualFarmerId);
+        
+        return response;
+    }
+
+    @PostMapping("/resend-confirmation/{bookingId}")
+    public Map<String, String> resendConfirmationEmail(@PathVariable Long bookingId, @RequestParam Long userId) {
+        System.out.println("=== RESENDING CONFIRMATION EMAIL ===");
+        System.out.println("Booking ID: " + bookingId);
+        System.out.println("User ID: " + userId);
+        
+        Booking booking = bookingRepo.findById(bookingId)
+                .orElseThrow(() -> new RuntimeException("Booking not found"));
+        
+        Long actualFarmerId = userId;
+        User user = userRepo.findById(userId).orElse(null);
+        if (user != null) {
+            Farmer farmer = farmerRepo.findByPhone(user.getPhone()).orElse(null);
+            if (farmer != null) {
+                actualFarmerId = farmer.getId();
+            }
+        }
+        
+        if (!booking.getRenter().getId().equals(actualFarmerId)) {
+            throw new RuntimeException("Unauthorized: This booking does not belong to you");
+        }
+        
+        try {
+            String renterEmail = booking.getRenter().getEmail();
+            String renterName = booking.getRenter().getName();
+            System.out.println("📧 Resending confirmation email to: " + renterEmail);
+            
+            emailService.sendBookingConfirmationToBooker(
+                renterEmail,
+                renterName,
+                booking.getEquipment().getName(),
+                booking.getStartDate().toString(),
+                booking.getHours(),
+                booking.getId()
+            );
+            
+            Map<String, String> response = new java.util.HashMap<>();
+            response.put("status", "success");
+            response.put("message", "Confirmation email resent to " + renterEmail);
+            
+            System.out.println("✅ Email resent successfully");
+            return response;
+        } catch (Exception e) {
+            System.err.println("❌ Failed to resend email: " + e.getMessage());
+            e.printStackTrace();
+            
+            Map<String, String> response = new java.util.HashMap<>();
+            response.put("status", "error");
+            response.put("message", "Failed to resend email: " + e.getMessage());
+            return response;
         }
     }
 }

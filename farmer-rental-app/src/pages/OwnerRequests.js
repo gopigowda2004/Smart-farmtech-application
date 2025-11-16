@@ -40,10 +40,11 @@ export default function OwnerRequests() {
     setError(""); // Clear previous errors
     
     api
-      .get(`/bookings/owner/${ownerId}`)
+      .get(`/bookings/my-owner-bookings?userId=${ownerId}`)
       .then((res) => {
-        console.log("✅ Owner requests fetched:", res.data?.length || 0, "bookings");
-        setBookings(res.data || []);
+        console.log("✅ Owner requests fetched:", res.data?.list?.length || res.data?.length || 0, "bookings");
+        const bookingsData = res.data?.list || res.data || [];
+        setBookings(bookingsData);
       })
       .catch((err) => {
         console.error("❌ Error fetching owner bookings:", err?.response?.data || err.message);

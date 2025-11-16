@@ -10,6 +10,9 @@ const LanguageSwitcher = ({ inline = false }) => {
     padding: "6px 10px",
     background: "#fff",
     cursor: "pointer",
+    color: "#374151",
+    fontSize: "14px",
+    fontWeight: "500",
   };
 
   if (inline) {
