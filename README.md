@@ -34,7 +34,6 @@ Make sure you have installed:
 * Node.js
 * Java (JDK 8 or above)
 * MySQL
-* Maven
 * Git
 
 ---
