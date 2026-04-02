@@ -21,7 +21,6 @@ FarmTech is a smart agriculture platform that connects farmers to rent and lease
 * **Frontend:** React.js
 * **Backend:** Spring Boot (Java)
 * **Database:** MySQL
-* **Server:** Apache Tomcat
 
 ---
 
