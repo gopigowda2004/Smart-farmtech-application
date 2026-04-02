@@ -22,6 +22,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.Map;
 
@@ -186,9 +187,12 @@ public class BookingController {
             System.out.println("║  📧 ATTEMPTING TO SEND BOOKING CONFIRMATION EMAIL TO RENTER  ║");
             System.out.println("╚════════════════════════════════════════════════════════════╝");
             
-            String renterEmail = renter.getEmail();
-            String renterName = renter.getName();
-            System.out.println("Renter ID: " + renter.getId());
+            // Re-fetch renter to ensure we have the latest email from DB if it was just created
+            Farmer freshRenter = farmerRepo.findById(renter.getId()).orElse(renter);
+            String renterEmail = freshRenter.getEmail();
+            String renterName = freshRenter.getName();
+            
+            System.out.println("Renter ID: " + freshRenter.getId());
             System.out.println("Renter Name: " + renterName);
             System.out.println("Renter Email: " + renterEmail);
             System.out.println("Equipment: " + equipment.getName());
@@ -567,6 +571,28 @@ public class BookingController {
                     System.out.println("=====================================================\n");
                     System.out.flush();
                 }
+
+                // NEW: Also send notification to the Renter's USER account email if it exists and is different
+                try {
+                    Optional<User> renterUserOpt = userRepo.findByPhone(renter.getPhone());
+                    if (renterUserOpt.isPresent()) {
+                        User renterUser = renterUserOpt.get();
+                        String userEmail = renterUser.getEmail();
+                        if (userEmail != null && !userEmail.isBlank() && !userEmail.equalsIgnoreCase(renterEmail)) {
+                            System.out.println("📧 Also notifying renter's USER account: " + userEmail);
+                            emailService.sendBookingAcceptanceToBooker(
+                                userEmail,
+                                renterUser.getName(),
+                                booking.getEquipment().getName(),
+                                acceptingOwner.getName(),
+                                acceptingOwner.getPhone(),
+                                booking.getId()
+                            );
+                        }
+                    }
+                } catch (Exception e) {
+                    System.err.println("⚠️ Could not send secondary renter notification: " + e.getMessage());
+                }
             } catch (Exception e) {
                 System.err.println("\n❌ ❌ ❌ EXCEPTION SENDING ACCEPTANCE EMAIL ❌ ❌ ❌");
                 System.err.println("Exception Type: " + e.getClass().getName());
@@ -594,6 +620,33 @@ public class BookingController {
                         booking.getId()
                     );
                     System.out.println("📧 Sent acceptance email to owner: " + ownerEmail);
+                }
+
+                // NEW: Also send notification to the Owner's USER account email if it exists and is different
+                try {
+                    Optional<User> ownerUserOpt = userRepo.findByPhone(acceptingOwner.getPhone());
+                    if (ownerUserOpt.isPresent()) {
+                        User ownerUser = ownerUserOpt.get();
+                        String userEmail = ownerUser.getEmail();
+                        if (userEmail != null && !userEmail.isBlank() && !userEmail.equalsIgnoreCase(acceptingOwner.getEmail())) {
+                            System.out.println("📧 Also notifying owner's USER account: " + userEmail);
+                            Farmer renter = booking.getRenter();
+                            emailService.sendBookingAcceptanceToOwner(
+                                userEmail,
+                                ownerUser.getName(),
+                                booking.getEquipment().getName(),
+                                renter.getName(),
+                                renter.getPhone(),
+                                renter.getEmail(),
+                                booking.getLocation(),
+                                booking.getStartDate().toString(),
+                                booking.getHours(),
+                                booking.getId()
+                            );
+                        }
+                    }
+                } catch (Exception e) {
+                    System.err.println("⚠️ Could not send secondary owner notification: " + e.getMessage());
                 }
             } catch (Exception e) {
                 System.err.println("Failed to send acceptance email to owner: " + e.getMessage());

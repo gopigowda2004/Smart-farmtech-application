@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { useI18n } from "../i18n/i18n";
 import LanguageSwitcher from "../components/LanguageSwitcher";
+import api from "../api/axiosInstance";
 
 const RegisterBooker = () => {
   const { t } = useI18n();
@@ -31,7 +31,7 @@ const RegisterBooker = () => {
     e.preventDefault();
     try {
       setLoading(true);
-      await axios.post("http://localhost:8090/api/auth/register", formData);
+      await api.post("/auth/register", formData);
       alert("✅ Registration successful! You can now login as an Equipment Booker.");
       navigate("/login");
     } catch (error) {

@@ -1,10 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
 import { useI18n } from "../i18n/i18n";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import NotificationSystem from "../components/NotificationSystem";
-import EnhancedChatbot from "../components/EnhancedChatbot";
 import api from "../api/axiosInstance";
 import { isAdminUser, checkAdminStatus } from "../utils/adminUtils";
 
@@ -295,7 +293,7 @@ export default function Dashboard() {
           profileData = response.data;
         } else if (farmerId) {
           // Legacy system - fetch by farmerId
-          const response = await axios.get(`http://localhost:8090/api/farmers/profile/${farmerId}`);
+          const response = await api.get(`/farmers/profile/${farmerId}`);
           profileData = response.data;
         }
         
@@ -307,7 +305,7 @@ export default function Dashboard() {
         // Try fallback to farmers API if users API fails
         if (userId && farmerId) {
           try {
-            const response = await axios.get(`http://localhost:8090/api/farmers/profile/${farmerId}`);
+            const response = await api.get(`/farmers/profile/${farmerId}`);
             setFarmerData(response.data);
           } catch (fallbackError) {
             console.error("Fallback profile fetch also failed:", fallbackError);
@@ -553,11 +551,6 @@ export default function Dashboard() {
     if (isAdmin) {
       return [
         {
-          label: "Total equipment",
-          value: equipments.length,
-          note: "System-wide equipment",
-        },
-        {
           label: "All pending requests",
           value: pendingBookings.length,
           note: "Across all users",
@@ -566,11 +559,6 @@ export default function Dashboard() {
           label: "All accepted bookings",
           value: acceptedBookings.length,
           note: "System-wide bookings",
-        },
-        {
-          label: "System revenue",
-          value: farmerData?.lifetimeEarnings ? `₹${farmerData.lifetimeEarnings}` : "₹0",
-          note: "Total platform earnings",
         },
       ];
     } else if (userRole === "OWNER") {
@@ -584,16 +572,6 @@ export default function Dashboard() {
           label: "Accepted bookings",
           value: acceptedBookings.length,
           note: "Scheduled with renters",
-        },
-        {
-          label: "Your earnings",
-          value: farmerData?.averageDailyRate ? `₹${farmerData.averageDailyRate}` : "₹0",
-          note: "From equipment rental",
-        },
-        {
-          label: "Equipment status",
-          value: "View only",
-          note: "Contact admin to add equipment",
         },
       ];
     } else if (userRole === "RENTER") {
@@ -609,11 +587,6 @@ export default function Dashboard() {
           note: "All time",
         },
         {
-          label: "Total spent",
-          value: `₹${farmerAnalytics?.totalSpent || 0}`,
-          note: "On equipment rental",
-        },
-        {
           label: "Favorite equipment",
           value: farmerAnalytics?.favoriteEquipment || "None",
           note: "Most frequently rented",
@@ -623,11 +596,6 @@ export default function Dashboard() {
       // Legacy users without role
       return [
         {
-          label: "Active equipment",
-          value: equipments.length,
-          note: "Ready for rent",
-        },
-        {
           label: "Pending requests",
           value: pendingBookings.length,
           note: "Awaiting your decision",
@@ -636,11 +604,6 @@ export default function Dashboard() {
           label: "Confirmed rentals",
           value: confirmedBookings.length,
           note: "Scheduled",
-        },
-        {
-          label: "Average daily rate",
-          value: farmerData?.averageDailyRate ? `₹${farmerData.averageDailyRate}` : "₹0",
-          note: "Across listed equipment",
         },
       ];
     }
@@ -729,7 +692,7 @@ export default function Dashboard() {
               }}
               onClick={handleAddEquipmentClick}
             >
-              <span>🛠️ Manage inventory</span>
+              <span></span>
             </li>
           )}
           <li
@@ -824,9 +787,6 @@ export default function Dashboard() {
           </div>
         </header>
 
-        {/* Enhanced AI Chatbot Assistant */}
-        <EnhancedChatbot />
-
         {activeTab === "dashboard" && (
           <>
             {/* Role-specific Hero Section */}
@@ -844,10 +804,6 @@ export default function Dashboard() {
                   <div style={styles.heroStat}>
                     <span style={styles.heroStatLabel}>Next booking</span>
                     <span style={styles.heroStatValue}>{nextBooking}</span>
-                  </div>
-                  <div style={styles.heroStat}>
-                    <span style={styles.heroStatLabel}>Lifetime revenue</span>
-                    <span style={styles.heroStatValue}>{lifetimeEarnings}</span>
                   </div>
                   <button style={styles.heroCta} onClick={handleAddEquipmentClick}>
                     Manage equipment →
@@ -874,10 +830,6 @@ export default function Dashboard() {
                     <span style={styles.heroStatLabel}>Active bookings</span>
                     <span style={styles.heroStatValue}>{confirmedBookings.length}</span>
                   </div>
-                  <div style={styles.heroStat}>
-                    <span style={styles.heroStatLabel}>Total spent</span>
-                    <span style={styles.heroStatValue}>₹{farmerAnalytics?.totalSpent || 0}</span>
-                  </div>
                   <button style={styles.heroCta} onClick={() => navigate("/bookings")}>
                     Browse equipment →
                   </button>
@@ -902,10 +854,6 @@ export default function Dashboard() {
                   <div style={styles.heroStat}>
                     <span style={styles.heroStatLabel}>Next booking</span>
                     <span style={styles.heroStatValue}>{nextBooking}</span>
-                  </div>
-                  <div style={styles.heroStat}>
-                    <span style={styles.heroStatLabel}>Lifetime revenue</span>
-                    <span style={styles.heroStatValue}>{lifetimeEarnings}</span>
                   </div>
                   <button style={styles.heroCta} onClick={handleAddEquipmentClick}>
                     Manage equipment →
@@ -1598,14 +1546,6 @@ export default function Dashboard() {
                     label="Your bookings"
                     value={farmerAnalytics?.totalBookings ?? "—"}
                     highlight
-                  />
-                  <AnalyticsMetric
-                    label="Revenue"
-                    value={formatCurrency(farmerAnalytics?.totalRevenue)}
-                  />
-                  <AnalyticsMetric
-                    label="Confirmed revenue"
-                    value={formatCurrency(farmerAnalytics?.confirmedRevenue)}
                   />
                   <AnalyticsMetric
                     label="Avg. confirmation time"

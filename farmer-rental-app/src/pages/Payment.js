@@ -29,7 +29,7 @@ export default function Payment() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const [method, setMethod] = useState("cod"); // cod | upi | card
+  const [method, setMethod] = useState("cod");
 
   // toast state
   const [toastOpen, setToastOpen] = useState(false);
@@ -200,27 +200,7 @@ export default function Payment() {
               <span style={{ marginLeft: 8 }}>Cash on Delivery (Pay at pickup/delivery)</span>
             </label>
 
-            <label style={styles.paymentOption}>
-              <input
-                type="radio"
-                name="payment"
-                value="upi"
-                checked={method === "upi"}
-                onChange={() => setMethod("upi")}
-              />
-              <span style={{ marginLeft: 8 }}>UPI (Coming soon)</span>
-            </label>
 
-            <label style={styles.paymentOption}>
-              <input
-                type="radio"
-                name="payment"
-                value="card"
-                checked={method === "card"}
-                onChange={() => setMethod("card")}
-              />
-              <span style={{ marginLeft: 8 }}>Card / Netbanking (Coming soon)</span>
-            </label>
           </div>
         </div>
 

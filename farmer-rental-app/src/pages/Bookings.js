@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../api/axiosInstance";
 import { useI18n } from "../i18n/i18n";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 
 export default function Bookings() {
   const { t } = useI18n();
+  const [searchParams] = useSearchParams();
+  const initialEquipmentId = searchParams.get("equipmentId") || "";
+  
   const [equipments, setEquipments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -14,7 +17,7 @@ export default function Bookings() {
   const navigate = useNavigate();
   const [loginTimestamp, setLoginTimestamp] = useState(localStorage.getItem("loginTimestamp"));
 
-  const [selectedEquipmentId, setSelectedEquipmentId] = useState("");
+  const [selectedEquipmentId, setSelectedEquipmentId] = useState(initialEquipmentId);
   const [startDate, setStartDate] = useState("");
   const [hours, setHours] = useState("");
 
@@ -289,6 +292,7 @@ export default function Bookings() {
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 style={styles.input}
+                min={new Date().toISOString().split("T")[0]}
                 required
               />
             </div>

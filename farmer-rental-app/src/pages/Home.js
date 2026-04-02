@@ -11,18 +11,21 @@ function HomePage() {
     <div style={styles.container}>
       {/* Navbar */}
       <nav style={styles.navbar}>
-        <h2 style={styles.logo}>{t("app.name")}</h2>
+        <h2 style={{...styles.logo, cursor: "pointer"}} onClick={() => navigate("/")}>{t("app.name")}</h2>
         <ul style={styles.navLinks}>
-          <li>{t("nav.home")}</li>
-          <li>{t("nav.about")}</li>
-          <li>{t("nav.tools")}</li>
-          <li>{t("nav.resources")}</li>
-          <li>{t("nav.community")}</li>
-          <li>{t("nav.contact")}</li>
+          <li onClick={() => navigate("/")} style={{fontWeight: "bold"}}>{t("nav.home")}</li>
+          <li onClick={() => navigate("/about")}>{t("nav.about")}</li>
+          <li onClick={() => navigate("/tools")}>{t("nav.tools")}</li>
+          <li onClick={() => navigate("/resources")}>{t("nav.resources")}</li>
+          <li onClick={() => navigate("/community")}>{t("nav.community")}</li>
+          <li onClick={() => navigate("/contact")}>{t("nav.contact")}</li>
         </ul>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <LanguageSwitcher inline />
           <div style={styles.navButtons}>
+            <button style={styles.adminBtn} onClick={() => navigate("/login")}>
+              Admin
+            </button>
             <button style={styles.loginBtn} onClick={() => navigate("/role-selection")}>
               {t("btn.login")}
             </button>
@@ -52,39 +55,11 @@ function HomePage() {
         </div>
       </section>
 
-      {/* Partner Logos */}
-      <section style={styles.partners}>
-        <img
-          src="https://upload.wikimedia.org/wikipedia/commons/5/58/Logitech_logo.svg"
-          alt="logitech"
-          style={styles.logoImg}
-        />
-        <img
-          src="https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg"
-          alt="amazon"
-          style={styles.logoImg}
-        />
-        <img
-          src="https://upload.wikimedia.org/wikipedia/commons/f/f1/Google-logo.png"
-          alt="google"
-          style={styles.logoImg}
-        />
-        <img
-          src="https://upload.wikimedia.org/wikipedia/commons/9/99/Salesforce_logo.svg"
-          alt="salesforce"
-          style={styles.logoImg}
-        />
-      </section>
-
       {/* Our Story */}
       <section style={styles.story}>
         <h2>{t("sections.ourStoryTitle")}</h2>
         <p>
-          Agriculture is the backbone of our world, providing essential
-          resources and sustaining communities. At <b>AgriTech</b>, we are
-          passionate about supporting farmers by offering innovative tools,
-          comprehensive resources, and a vibrant community. Our mission is to
-          empower agriculture through knowledge, technology, and collaboration.
+          Farm equipment is vital for modern agriculture, yet purchasing new machinery is expensive and often underutilized. At <b>FarmTech</b>, we revolutionize how farmers access equipment by connecting them with equipment owners in their community. Our mission is to make quality farm equipment affordable, accessible, and sustainable for all farmers.
         </p>
       </section>
 
@@ -93,28 +68,25 @@ function HomePage() {
         <h2>{t("sections.whyTitle")}</h2>
         <div style={styles.cards}>
           <div style={styles.card}>
-            <h3>🌦 Weather Forecast Tool</h3>
+            <h3>🚜 Wide Equipment Selection</h3>
             <p>
-              Stay updated with accurate weather reports to plan your farming
-              activities efficiently.
+              Access a diverse range of farm equipment from tractors to harvesters, all available at your fingertips.
             </p>
           </div>
           <div style={styles.card}>
-            <h3>🚜 Crop Planning Calculator</h3>
-            <p>Smart tools to help you plan your crops and maximize yield.</p>
+            <h3>💰 Affordable Rental Rates</h3>
+            <p>Save up to 70% compared to equipment purchase while maintaining quality and reliability.</p>
           </div>
           <div style={styles.card}>
-            <h3>💰 Cost Saving Choice</h3>
+            <h3>⏰ Easy Booking & Scheduling</h3>
             <p>
-              Access affordable rental services and reduce operational costs
-              significantly.
+              Book equipment in minutes with flexible rental periods tailored to your farming needs.
             </p>
           </div>
           <div style={styles.card}>
-            <h3>🌱 Modern Farm Tracker</h3>
+            <h3>🤝 Community-Driven Marketplace</h3>
             <p>
-              Monitor and track your farm growth with real-time data and
-              analytics.
+              Connect directly with local equipment owners and support farmers in your community.
             </p>
           </div>
         </div>
@@ -142,7 +114,7 @@ function HomePage() {
       {/* Footer */}
       <footer style={styles.footer}>
         <p>© 2025 AgriTech. {t("sections.footerRights")}</p>
-        <p>Contact: info@agritech.com</p>
+        <p>Contact: farmertech34@gmail.com.com</p>
       </footer>
     </div>
   );
@@ -181,6 +153,16 @@ const styles = {
   navButtons: {
     display: "flex",
     gap: "15px",
+  },
+  adminBtn: {
+    background: "#fdd835",
+    color: "#333",
+    border: "none",
+    padding: "10px 20px",
+    borderRadius: "30px",
+    fontWeight: "600",
+    cursor: "pointer",
+    transition: "all 0.3s",
   },
   loginBtn: {
     background: "transparent",

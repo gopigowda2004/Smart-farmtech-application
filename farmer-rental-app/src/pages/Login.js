@@ -6,11 +6,7 @@ import LanguageSwitcher from "../components/LanguageSwitcher";
 
 export default function Login() {
   const { t } = useI18n();
-  const [formData, setFormData] = useState({ phone: "", selectedRole: "" });
-  const [otp, setOtp] = useState("");
-  const [password, setPassword] = useState("");
-  const [otpPhase, setOtpPhase] = useState(false);
-  const [maskedEmailInfo, setMaskedEmailInfo] = useState(null);
+  const [formData, setFormData] = useState({ phone: "", password: "", selectedRole: "" });
   const [message, setMessage] = useState("");
   const [messageColor, setMessageColor] = useState("#d32f2f");
   const navigate = useNavigate();
@@ -53,31 +49,12 @@ export default function Login() {
     }
   };
 
-  useEffect(() => {
-    if (normalizeRole(formData.selectedRole) === "ADMIN") {
-      setOtpPhase(false);
-      setOtp("");
-      setMaskedEmailInfo(null);
-    }
-  }, [formData.selectedRole]);
-
   const normalizedSelectedRoleValueMemo = normalizeRole(formData.selectedRole);
-  const isAdminSelected = normalizedSelectedRoleValueMemo === "ADMIN";
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-
-    if (name === "phone") {
-      if (isAdminSelected) {
-        setPassword("");
-      }
-      // Changing the phone number should reset the OTP flow
-      setOtp("");
-      setOtpPhase(false);
-      setMaskedEmailInfo(null);
-      setMessage("");
-    }
+    setMessage("");
   };
 
   const handleSubmit = async (e) => {
@@ -91,21 +68,9 @@ export default function Login() {
       return;
     }
 
-    if (!formData.phone.trim()) {
+    if (!formData.phone.trim() || !formData.password.trim()) {
       setMessageColor("#d32f2f");
-      setMessage("❌ Phone number is required");
-      return;
-    }
-
-    if (normalizedSelectedRoleValue === "ADMIN") {
-      if (!password.trim()) {
-        setMessageColor("#d32f2f");
-        setMessage("❌ Password is required for admin login");
-        return;
-      }
-    } else if (otpPhase && !otp.trim()) {
-      setMessageColor("#d32f2f");
-      setMessage("❌ Please enter the OTP sent to your email");
+      setMessage("❌ Phone number and password are required");
       return;
     }
 
@@ -116,35 +81,20 @@ export default function Login() {
       localStorage.removeItem("userRole");
       localStorage.removeItem("isAdmin");
 
-      const payload = isAdminSelected
-        ? { phone: formData.phone.trim(), password: password.trim(), role: "ADMIN" }
-        : otpPhase
-          ? { phone: formData.phone.trim(), otp: otp.trim() }
-          : { phone: formData.phone.trim() };
+      const payload = { 
+        phone: formData.phone.trim(), 
+        password: formData.password.trim() 
+      };
 
       const res = await api.post(`/auth/login`, payload);
       const data = res.data || {};
       const normalizedResponseRole = normalizeRole(data.role);
 
-      // Phase 1: OTP generation
-      if (!otpPhase && data.otpSent) {
-        setOtpPhase(true);
-        setMaskedEmailInfo({
-          prefix: data.emailPrefix,
-          maskedDomain: data.maskedDomain
-        });
-        setMessageColor("#0d47a1");
-        const emailHint = data.emailPrefix && data.maskedDomain
-          ? `${data.emailPrefix}@${data.maskedDomain}`
-          : "your registered email";
-        setMessage(`📨 OTP sent to ${emailHint}. Please enter it below.`);
-        return;
-      }
-
-      // Phase 2: OTP verification (or legacy direct login fallback)
+      // Verify login success
       if ((data.farmerId || data.userId) && normalizedResponseRole) {
         const userActualRole = normalizedResponseRole;
         const normalizedSelectedRole = normalizeRole(formData.selectedRole);
+        
         if (userActualRole !== normalizedSelectedRole) {
           setMessageColor("#d32f2f");
           const expectedRoleDescription = describeRole(normalizedSelectedRole);
@@ -181,54 +131,13 @@ export default function Login() {
     } catch (err) {
       const msg = err.response?.data?.message || err.message || "Invalid credentials";
       setMessageColor("#d32f2f");
-      setMessage(`❌ ${t("auth.failed")}: ${msg}`);
+      setMessage(`❌ Login failed: ${msg}`);
     }
-  };
-
-  const handleResendOtp = async () => {
-    if (!formData.phone.trim()) {
-      setMessageColor("#d32f2f");
-      setMessage("❌ Enter your phone number before requesting an OTP");
-      return;
-    }
-
-    try {
-      const res = await api.post(`/auth/login`, { phone: formData.phone.trim() });
-      const data = res.data || {};
-      if (data.otpSent) {
-        setOtp("");
-        setOtpPhase(true);
-        setMaskedEmailInfo({
-          prefix: data.emailPrefix,
-          maskedDomain: data.maskedDomain
-        });
-        const emailHint = data.emailPrefix && data.maskedDomain
-          ? `${data.emailPrefix}@${data.maskedDomain}`
-          : "your registered email";
-        setMessageColor("#0d47a1");
-        setMessage(`📨 New OTP sent to ${emailHint}.`);
-      } else {
-        setMessageColor("#d32f2f");
-        setMessage(`❌ ${data.message || "Unable to resend OTP"}`);
-      }
-    } catch (err) {
-      const msg = err.response?.data?.message || err.message || "Failed to resend OTP";
-      setMessageColor("#d32f2f");
-      setMessage(`❌ ${msg}`);
-    }
-  };
-
-  const handleResetPhone = () => {
-    setOtpPhase(false);
-    setOtp("");
-    setMaskedEmailInfo(null);
-    setMessage("");
   };
 
   return (
     <div style={styles.page}>
       <div style={styles.card}>
-        {/* Left Form Section */}
         <div style={styles.formSection}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
             <h2 style={styles.heading}>{t("auth.loginTitle")}</h2>
@@ -245,52 +154,18 @@ export default function Login() {
               onChange={handleChange}
               style={styles.input}
               required
-              disabled={otpPhase && !isAdminSelected}
             />
 
-            {isAdminSelected ? (
-              <>
-                <label style={styles.label}>Password *</label>
-                <input
-                  type="password"
-                  name="adminPassword"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  style={styles.input}
-                  required
-                />
-              </>
-            ) : otpPhase ? (
-              <>
-                <label style={styles.label}>One-Time Password *</label>
-                <input
-                  type="text"
-                  name="otp"
-                  placeholder="Enter the 6-digit OTP"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  style={styles.input}
-                  maxLength={6}
-                  required
-                />
-                {maskedEmailInfo && (
-                  <p style={styles.otpHint}>
-                    OTP sent to <strong>{maskedEmailInfo.prefix}@{maskedEmailInfo.maskedDomain}</strong>
-                  </p>
-                )}
-                <div style={styles.otpActions}>
-                  <button type="button" style={styles.secondaryButton} onClick={handleResendOtp}>
-                    Resend OTP
-                  </button>
-                  <button type="button" style={styles.linkButton} onClick={handleResetPhone}>
-                    Edit phone number
-                  </button>
-                </div>
-              </>
-            ) : (
-              <p style={styles.otpInfo}>We will send an OTP to your registered email for secure login.</p>
-            )}
+            <label style={styles.label}>Password</label>
+            <input
+              type="password"
+              name="password"
+              placeholder="Enter your password"
+              value={formData.password}
+              onChange={handleChange}
+              style={styles.input}
+              required
+            />
 
             <label style={styles.label}>Selected Role *</label>
             <div style={styles.roleDisplay}>
@@ -311,17 +186,14 @@ export default function Login() {
               </p>
             )}
 
-            {!otpPhase && (
-              <a href="/forgot-password" style={styles.forgotPassword}>{t("auth.forgot")}</a>
-            )}
+            <a href="/forgot-password" style={styles.forgotPassword}>{t("auth.forgot")}</a>
 
             <button type="submit" style={styles.submitButton}>
-              {otpPhase ? "Verify & Sign In" : "Send OTP"}
+              Login
             </button>
           </form>
         </div>
 
-        {/* Right Image Section */}
         <div style={styles.imageSection}>
           <img
             src="https://tse1.mm.bing.net/th/id/OIP.8K1AFNwiAkB4fQwXimcuRwHaE8?r=0&rs=1&pid=ImgDetMain&o=7&rm=3"

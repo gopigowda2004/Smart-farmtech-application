@@ -136,13 +136,17 @@ public class AuthController {
         ));
     }
 
-    // ✅ Login (phone + password) - Enhanced with User role checking
+    // ✅ Login (phone + password) - Direct password verification
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> request) {
         String phone = request.get("phone");
+        String password = request.get("password");
 
         if (phone == null || phone.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("message", "Phone is required"));
+        }
+        if (password == null || password.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Password is required"));
         }
 
         Optional<User> userOpt = userRepository.findByPhone(phone);
@@ -152,42 +156,13 @@ public class AuthController {
         }
 
         User user = userOpt.get();
-        String requestedRole = request.get("role");
-        boolean isAdminUser = user.getRole() != null && user.getRole().equalsIgnoreCase("ADMIN");
-        boolean adminPasswordLoginRequested = requestedRole != null && requestedRole.equalsIgnoreCase("ADMIN");
 
-        if (!adminPasswordLoginRequested && isAdminUser) {
-            // Fallback: if frontend forgot to send role but password present, honor password flow for admins
-            adminPasswordLoginRequested = request.get("password") != null;
+        // Direct password comparison (Security note: should use BCrypt for production)
+        if (!user.getPassword().equals(password)) {
+            return ResponseEntity.status(401).body(Map.of("message", "Invalid credentials"));
         }
 
-        if (adminPasswordLoginRequested) {
-            if (!isAdminUser) {
-                return ResponseEntity.status(403).body(Map.of("message", "Access denied for non-admin user"));
-            }
-
-            String password = request.get("password");
-            if (password == null || password.isBlank()) {
-                return ResponseEntity.badRequest().body(Map.of("message", "Password is required for admin login"));
-            }
-
-            if (user.getPassword() == null || !user.getPassword().equals(password)) {
-                return ResponseEntity.status(401).body(Map.of("message", "Invalid admin credentials"));
-            }
-
-            userRepository.clearOtpForUser(user.getId());
-            return createUserLoginResponse(user);
-        }
-
-        String otp = request.get("otp");
-
-        // If OTP provided -> verify OTP flow
-        if (otp != null && !otp.isBlank()) {
-            return handleOtpVerification(user, otp);
-        }
-
-        // Generate OTP and send email
-        return handleOtpGeneration(user);
+        return createUserLoginResponse(user);
     }
 
     private ResponseEntity<?> handleOtpGeneration(User user) {
@@ -195,6 +170,8 @@ public class AuthController {
         Instant expiry = Instant.now().plusSeconds(5 * 60); // 5 minutes validity
 
         userRepository.updateOtpForUser(user.getId(), otp, expiry);
+        
+        System.out.println("🔑 [OTP DEBUG] Generated OTP: " + otp + " for user: " + user.getEmail());
 
         emailService.sendOtpEmail(user.getEmail(), otp);
 
@@ -261,8 +238,8 @@ public class AuthController {
     }
 
     private String generateOtp() {
-        int otp = ThreadLocalRandom.current().nextInt(100000, 999999);
-        return String.valueOf(otp);
+        // Special fixed OTP for testing/debugging
+        return "123456";
     }
 
     private ResponseEntity<?> createUserLoginResponse(User user) {

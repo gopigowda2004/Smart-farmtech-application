@@ -45,8 +45,8 @@ function Equipments() {
   });
 
   const handleRentNow = (equipment) => {
-    // Navigate to booking page with equipment details
-    navigate('/checkout', { state: { equipment } });
+    // Navigate to bookings page with equipment selected
+    navigate(`/bookings?equipmentId=${equipment.id}`);
   };
 
   if (loading) return (

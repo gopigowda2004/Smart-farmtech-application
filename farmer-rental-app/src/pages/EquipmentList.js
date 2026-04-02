@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import api from "../api/axiosInstance";
 import { useI18n } from "../i18n/i18n";
 import LanguageSwitcher from "../components/LanguageSwitcher";
-import EnhancedChatbot from "../components/EnhancedChatbot";
 import { useNavigate } from "react-router-dom";
 
 export default function EquipmentsList() {
@@ -83,6 +82,15 @@ export default function EquipmentsList() {
               // Backend expects date-only startDate/endDate; compute endDate from hours
               const start = new Date(startDate);
               if (isNaN(start.getTime())) return;
+              
+              // Validate date is not in the past
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              if (start < today) {
+                alert("Please select today's date or a future date.");
+                return;
+              }
+
               const startDateOnly = start.toISOString().slice(0, 10);
               
               console.log("🔄 Creating booking with renterId:", renterId, "(farmerId:", farmerId, "userId:", userId, ")");
@@ -103,9 +111,6 @@ export default function EquipmentsList() {
           </div>
         ))}
       </div>
-      
-      {/* Enhanced AI Chatbot Assistant */}
-      <EnhancedChatbot />
     </div>
   );
 }

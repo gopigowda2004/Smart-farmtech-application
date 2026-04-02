@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { useI18n } from "../i18n/i18n";
 import LanguageSwitcher from "../components/LanguageSwitcher";
+import api from "../api/axiosInstance";
 
 const RegisterAccepter = () => {
   const { t } = useI18n();
@@ -73,7 +73,7 @@ const RegisterAccepter = () => {
       };
 
       // Register the user
-      const response = await axios.post("http://localhost:8090/api/auth/register", registrationData);
+      const response = await api.post("/auth/register", registrationData);
       
       // If registration successful and user has equipment, we could add equipment details
       // This would require a separate API endpoint for equipment details

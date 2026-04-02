@@ -1,6 +1,11 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
+import About from "./pages/About";
+import Tools from "./pages/Tools";
+import Resources from "./pages/Resources";
+import Community from "./pages/Community";
+import Contact from "./pages/Contact";
 import Register from "./pages/Register";
 import RegisterSelection from "./pages/RegisterSelection";
 import RegisterBooker from "./pages/RegisterBooker";
@@ -24,19 +29,24 @@ import ManageMyEquipment from "./pages/ManageMyEquipment";
 import Checkout from "./pages/Checkout";
 import Payment from "./pages/Payment";
 import AdminDashboard from "./pages/AdminDashboard";
-import Chatbot from "./components/Chatbot";
+import AdminRegister from "./pages/AdminRegister";
 
 function App() {
   return (
     <Router>
-      <Chatbot />
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/tools" element={<Tools />} />
+        <Route path="/resources" element={<Resources />} />
+        <Route path="/community" element={<Community />} />
+        <Route path="/contact" element={<Contact />} />
         <Route path="/role-selection" element={<RoleSelection />} />
         <Route path="/register" element={<RegisterSelection />} />
         <Route path="/register-old" element={<Register />} />
         <Route path="/register-booker" element={<RegisterBooker />} />
         <Route path="/register-accepter" element={<RegisterAccepter />} />
+        <Route path="/admin-register" element={<AdminRegister />} />
         <Route path="/login" element={<Login />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/admin-dashboard" element={<AdminDashboard />} /> 

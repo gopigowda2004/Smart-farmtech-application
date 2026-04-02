@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
 import { useI18n } from "../i18n/i18n";
 import LanguageSwitcher from "../components/LanguageSwitcher";
+import api from "../api/axiosInstance";
 
 export default function Profile() {
   const { t } = useI18n();
@@ -47,11 +47,11 @@ export default function Profile() {
           if (currentUserId) {
             // New system - fetch from Users API
             console.log("📡 Fetching from Users API for userId:", currentUserId);
-            response = await axios.get(`http://localhost:8090/api/users/${currentUserId}`);
+            response = await api.get(`/users/${currentUserId}`);
           } else if (currentFarmerId) {
             // Legacy system - fetch from Farmers API
             console.log("📡 Fetching from Farmers API for farmerId:", currentFarmerId);
-            response = await axios.get(`http://localhost:8090/api/farmers/profile/${currentFarmerId}`);
+            response = await api.get(`/farmers/profile/${currentFarmerId}`);
           }
           
           if (response && response.data) {
@@ -65,7 +65,7 @@ export default function Profile() {
           if (currentUserId && currentFarmerId) {
             try {
               console.log("🔄 Trying fallback to Farmers API...");
-              const fallbackResponse = await axios.get(`http://localhost:8090/api/farmers/profile/${currentFarmerId}`);
+              const fallbackResponse = await api.get(`/farmers/profile/${currentFarmerId}`);
               setFarmer(fallbackResponse.data);
               setEditForm(fallbackResponse.data);
             } catch (fallbackErr) {
@@ -104,11 +104,11 @@ export default function Profile() {
       if (userId) {
         // New system - save to Users API
         console.log("💾 Saving to Users API for userId:", userId);
-        response = await axios.put(`http://localhost:8090/api/users/${userId}`, editForm);
+        response = await api.put(`/users/${userId}`, editForm);
       } else if (farmerId) {
         // Legacy system - save to Farmers API
         console.log("💾 Saving to Farmers API for farmerId:", farmerId);
-        response = await axios.put(`http://localhost:8090/api/farmers/profile/${farmerId}`, editForm);
+        response = await api.put(`/farmers/profile/${farmerId}`, editForm);
       }
       
       if (response && response.data) {
@@ -119,8 +119,8 @@ export default function Profile() {
       }
     } catch (error) {
       console.error("❌ Error updating profile:", error);
-      console.error("Error details:", error.response?.data || error.message);
-      alert("❌ Failed to update profile. Please try again.");
+      const errorMessage = error.response?.data?.message || error.response?.data || error.message;
+      alert("❌ Failed to update profile: " + (typeof errorMessage === 'string' ? errorMessage : "Server error"));
     }
   };
 
@@ -342,7 +342,10 @@ export default function Profile() {
                     step="any"
                     style={styles.editInput}
                     value={editForm.latitude || ''}
-                    onChange={(e) => handleEditChange('latitude', parseFloat(e.target.value))}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      handleEditChange('latitude', val === '' ? null : parseFloat(val));
+                    }}
                     placeholder="e.g., 12.9716"
                   />
                 ) : (
@@ -360,7 +363,10 @@ export default function Profile() {
                     step="any"
                     style={styles.editInput}
                     value={editForm.longitude || ''}
-                    onChange={(e) => handleEditChange('longitude', parseFloat(e.target.value))}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      handleEditChange('longitude', val === '' ? null : parseFloat(val));
+                    }}
                     placeholder="e.g., 77.5946"
                   />
                 ) : (
@@ -387,7 +393,7 @@ export default function Profile() {
             <div style={styles.detailIcon}>🆔</div>
             <div style={styles.detailContent}>
               <label style={styles.detailLabel}>User ID</label>
-              <p style={styles.detailValue}>#{farmerId}</p>
+              <p style={styles.detailValue}>#{farmerId || userId || 'N/A'}</p>
             </div>
           </div>
         </div>

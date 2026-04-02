@@ -2,15 +2,19 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axiosInstance";
 import NotificationSystem from "../components/NotificationSystem";
+import { 
+  PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid
+} from 'recharts'
 
 const AdminDashboard = () => {
-  const navigate = useNavigate();
+  const navigate = useNavigate( );
   const [activeTab, setActiveTab] = useState("overview");
   const [users, setUsers] = useState([]);
   const [equipment, setEquipment] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [showAddEquipmentForm, setShowAddEquipmentForm] = useState(false);
+  const [showAddEquipmentForm, setShowAddEquipmentForm] = useState(false);                   
   const [equipmentForm, setEquipmentForm] = useState({
     name: "",
     description: "",
@@ -39,7 +43,7 @@ const AdminDashboard = () => {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      // Load users, equipment, and bookings data
+      
       const [usersRes, equipmentRes, bookingsRes] = await Promise.all([
         api.get("/users"),
         api.get("/equipments"),
@@ -77,7 +81,7 @@ const AdminDashboard = () => {
     if (window.confirm("Are you sure you want to delete this equipment?")) {
       try {
         const userId = localStorage.getItem("userId");
-        const farmerId = localStorage.getItem("farmerId") || "1"; // Admin farmer ID
+        const farmerId = localStorage.getItem("farmerId") || "1"; 
         await api.delete(`/equipments/${equipmentId}?farmerId=${farmerId}&userId=${userId}`);
         setEquipment(equipment.filter(eq => eq.id !== equipmentId));
         alert("✅ Equipment deleted successfully");
@@ -137,18 +141,18 @@ const AdminDashboard = () => {
   const saveEditEquipment = async (equipmentId) => {
     try {
       const userId = localStorage.getItem("userId");
-      const farmerId = localStorage.getItem("farmerId") || "1"; // Admin farmer ID
+      const farmerId = localStorage.getItem("farmerId") || "1"; 
       const pricePerHour = parseFloat(editEquipmentForm.price);
       const updateData = {
         name: editEquipmentForm.name,
         description: editEquipmentForm.description,
-        price: pricePerHour * 24, // Calculate daily rate from hourly
+        price: pricePerHour * 24, 
         pricePerHour: pricePerHour,
         image: editEquipmentForm.image
       };
       
       await api.put(`/equipments/${equipmentId}?userId=${userId}&farmerId=${farmerId}`, updateData);
-      // Refresh equipment list
+      
       const equipmentRes = await api.get("/equipments");
       setEquipment(equipmentRes.data || []);
       setEditingEquipment(null);
@@ -163,24 +167,24 @@ const AdminDashboard = () => {
     e.preventDefault();
     try {
       const userId = localStorage.getItem("userId");
-      const farmerId = localStorage.getItem("farmerId") || "1"; // Default admin farmer ID
+      const farmerId = localStorage.getItem("farmerId") || "1"; 
       
       const pricePerHour = parseFloat(equipmentForm.price);
       const equipmentData = {
         name: equipmentForm.name,
         description: equipmentForm.description,
-        price: pricePerHour * 24, // Calculate daily rate from hourly
+        price: pricePerHour * 24, 
         pricePerHour: pricePerHour,
         image: equipmentForm.image
       };
       
       const response = await api.post(`/equipments/add/${farmerId}?userId=${userId}`, equipmentData);
       
-      // Refresh equipment list from server to get complete data
+      
       const equipmentRes = await api.get("/equipments");
       setEquipment(equipmentRes.data || []);
       
-      // Reset form and hide it
+      
       setEquipmentForm({ name: "", description: "", price: "", image: "" });
       setShowAddEquipmentForm(false);
       
@@ -199,6 +203,24 @@ const AdminDashboard = () => {
     });
   };
 
+
+  const totalRenters = users.filter(u => u.role === "RENTER").length;
+  const avgBookingsPerRenter = totalRenters > 0 ? (bookings.length / totalRenters).toFixed(1) : 0;
+
+  const userData = [
+    { name: "Admins", value: users.filter(u => u.role === "ADMIN").length },                             
+    { name: "Owners", value: users.filter(u => u.role === "OWNER").length },
+    { name: "Renters", value: users.filter(u => u.role === "RENTER").length }
+  ].filter(d => d.value > 0);
+
+  const bookingStatusData = [
+    { name: "Pending", value: bookings.filter(b => b.status?.toUpperCase() === "PENDING").length },
+    { name: "Confirmed", value: bookings.filter(b => b.status?.toUpperCase() === "CONFIRMED").length },
+    { name: "Cancelled", value: bookings.filter(b => b.status?.toUpperCase() === "CANCELLED").length }
+  ].filter(d => d.value > 0);               
+
+  const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
+
   const viewBookingDetails = (booking) => {
     alert(`Booking Details:
 ID: ${booking.id}
@@ -207,7 +229,7 @@ Renter: ${booking.renter?.name || "N/A"} (${booking.renter?.phone || "N/A"})
 Owner: ${booking.owner?.name || booking.acceptedOwner?.name || "N/A"}
 Start Date: ${booking.startDate}
 Hours: ${booking.hours || "N/A"}
-Status: ${booking.status}
+Status: ${booking.status}       
 Total Cost: ₹${booking.totalCost || "0"}
 Location: ${booking.location || "N/A"}
 Created: ${booking.createdAt ? new Date(booking.createdAt).toLocaleString() : "N/A"}`);
@@ -220,8 +242,8 @@ Created: ${booking.createdAt ? new Date(booking.createdAt).toLocaleString() : "N
           params: { status: "CANCELLED" }
         });
         
-        // Update local state
-        setBookings(bookings.map(booking => 
+        
+        setBookings(bookings.map(booking =>                                                                    
           booking.id === bookingId 
             ? { ...booking, status: "CANCELLED" }
             : booking
@@ -236,34 +258,68 @@ Created: ${booking.createdAt ? new Date(booking.createdAt).toLocaleString() : "N
   };
 
   const renderOverview = () => (
-    <div style={styles.overviewGrid}>
-      <div style={styles.statCard}>
-        <h3>👥 Total Users</h3>
-        <div style={styles.statNumber}>{users.length}</div>
-        <div style={styles.statBreakdown}>
-          <div>Admins: {users.filter(u => u.role === "ADMIN").length}</div>
-          <div>Owners: {users.filter(u => u.role === "OWNER").length}</div>
-          <div>Renters: {users.filter(u => u.role === "RENTER").length}</div>
+    <div style={styles.overviewContainer}>                                                              
+      <div style={styles.overviewGrid}>
+        <div style={styles.statCard}>
+          <h3>👥 Total Users</h3>
+          <div style={styles.statNumber}>{users.length}</div>
+          <div style={styles.statBreakdown}>
+            <div>Admins: {users.filter(u => u.role === "ADMIN").length}</div>
+            <div>Owners: {users.filter(u => u.role === "OWNER").length}</div>
+            <div>Renters: {users.filter(u => u.role === "RENTER").length}</div>
+          </div>
+        </div>
+        
+        <div style={styles.statCard}>
+          <h3>📋 Total Bookings</h3>
+          <div style={styles.statNumber}>{bookings.length}</div>
+          <div style={styles.statBreakdown}>
+            <div>Pending: {bookings.filter(b => b.status?.toUpperCase() === "PENDING").length}</div>
+            <div>Confirmed: {bookings.filter(b => b.status?.toUpperCase() === "CONFIRMED").length}</div>
+            <div>Cancelled: {bookings.filter(b => b.status?.toUpperCase() === "CANCELLED").length}</div>
+            <div>Avg Bookings/User: {avgBookingsPerRenter}</div>
+          </div>
         </div>
       </div>
-      
-      <div style={styles.statCard}>
-        <h3>🚜 Total Equipment</h3>
-        <div style={styles.statNumber}>{equipment.length}</div>
-        <div style={styles.statBreakdown}>
-          <div>Available: {equipment.filter(e => e.status === "available").length}</div>
-          <div>Rented: {equipment.filter(e => e.status === "rented").length}</div>
+
+      {/* Charts Section */}
+      <div style={styles.chartsGrid}>
+        <div style={styles.chartCard}>
+          <h4 style={styles.chartTitle}>User Distribution</h4>
+          <div style={{ width: '100%', height: 200 }}>
+            <ResponsiveContainer>
+              <PieChart>
+                <Pie
+                  data={userData}
+                  innerRadius={40}
+                  outerRadius={70}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {userData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend iconSize={10} wrapperStyle={{fontSize: '12px'}} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-      </div>
-      
-      <div style={styles.statCard}>
-        <h3>📋 Total Bookings</h3>
-        <div style={styles.statNumber}>{bookings.length}</div>
-        <div style={styles.statBreakdown}>
-          <div>Pending: {bookings.filter(b => b.status?.toUpperCase() === "PENDING").length}</div>
-          <div>Confirmed: {bookings.filter(b => b.status?.toUpperCase() === "CONFIRMED").length}</div>
-          <div>Completed: {bookings.filter(b => b.status?.toUpperCase() === "COMPLETED").length}</div>
-          <div>Cancelled: {bookings.filter(b => b.status?.toUpperCase() === "CANCELLED").length}</div>
+
+        <div style={styles.chartCard}>
+          <h4 style={styles.chartTitle}>Booking Status</h4>
+          <div style={{ width: '100%', height: 200 }}> 
+            <ResponsiveContainer>
+              <BarChart data={bookingStatusData} margin={{ top: 5, right: 200, left: 0, bottom: 50 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" tick={{fontSize: 10}} />
+                <YAxis tick={{fontSize: 1}} />
+                <Tooltip />
+                <Bar dataKey="value" fill="#3498db" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
     </div>
@@ -295,13 +351,13 @@ Created: ${booking.createdAt ? new Date(booking.createdAt).toLocaleString() : "N
         
         {users.map(user => (
           editingUser === user.id && user.role !== "ADMIN" ? (
-            // Edit Mode (only for non-ADMIN users)
+            
             <div key={user.id} style={{...styles.tableRow, gridTemplateColumns: "60px 1fr 1fr 120px 100px 1fr 100px 150px", backgroundColor: "#f0f8ff"}}>
               <div style={styles.tableCell}>#{user.id}</div>
               <div style={styles.tableCell}>
                 <input 
                   type="text" 
-                  value={editUserForm.name} 
+                  value={editUserForm.name}                                                
                   onChange={(e) => setEditUserForm({...editUserForm, name: e.target.value})}
                   style={styles.editInput}
                 />
@@ -373,7 +429,7 @@ Created: ${booking.createdAt ? new Date(booking.createdAt).toLocaleString() : "N
               </div>
             </div>
           ) : (
-            // View Mode
+            
             <div key={user.id} style={{...styles.tableRow, gridTemplateColumns: "60px 1fr 1fr 120px 100px 1fr 100px 150px"}}>
               <div style={styles.tableCell}>#{user.id}</div>
               <div style={styles.tableCell}>{user.name}</div>
@@ -433,19 +489,18 @@ Created: ${booking.createdAt ? new Date(booking.createdAt).toLocaleString() : "N
       </div>
       
       <div style={styles.table}>
-        <div style={styles.tableRow}>
+        <div style={{...styles.tableRow, gridTemplateColumns: "1fr 1fr 1fr 1fr 150px"}}>
           <div style={styles.tableHeaderCell}>Name</div>
           <div style={styles.tableHeaderCell}>Type</div>
           <div style={styles.tableHeaderCell}>Owner</div>
           <div style={styles.tableHeaderCell}>Price/Hour</div>
-          <div style={styles.tableHeaderCell}>Status</div>
           <div style={styles.tableHeaderCell}>Actions</div>
         </div>
         
         {equipment.map(eq => (
           editingEquipment === eq.id ? (
             // Edit Mode
-            <div key={eq.id} style={{...styles.tableRow, backgroundColor: "#f0f8ff"}}>
+            <div key={eq.id} style={{...styles.tableRow, gridTemplateColumns: "1fr 1fr 1fr 1fr 150px", backgroundColor: "#f0f8ff"}}>
               <div style={styles.tableCell}>
                 <input 
                   type="text" 
@@ -475,14 +530,6 @@ Created: ${booking.createdAt ? new Date(booking.createdAt).toLocaleString() : "N
                 />
               </div>
               <div style={styles.tableCell}>
-                <span style={{
-                  ...styles.statusBadge,
-                  backgroundColor: eq.status === "available" ? "#4ecdc4" : "#ff6b6b"
-                }}>
-                  {eq.status}
-                </span>
-              </div>
-              <div style={styles.tableCell}>
                 <button 
                   style={styles.saveButton}
                   onClick={() => saveEditEquipment(eq.id)}
@@ -498,20 +545,12 @@ Created: ${booking.createdAt ? new Date(booking.createdAt).toLocaleString() : "N
               </div>
             </div>
           ) : (
-            // View Mode
-            <div key={eq.id} style={styles.tableRow}>
+            
+            <div key={eq.id} style={{...styles.tableRow, gridTemplateColumns: "1fr 1fr 1fr 1fr 150px"}}>
               <div style={styles.tableCell}>{eq.name}</div>
               <div style={styles.tableCell}>{eq.type}</div>
               <div style={styles.tableCell}>{eq.ownerName}</div>
               <div style={styles.tableCell}>₹{eq.pricePerHour || (eq.price ? (eq.price / 24).toFixed(2) : 0)}/hr</div>
-              <div style={styles.tableCell}>
-                <span style={{
-                  ...styles.statusBadge,
-                  backgroundColor: eq.status === "available" ? "#4ecdc4" : "#ff6b6b"
-                }}>
-                  {eq.status}
-                </span>
-              </div>
               <div style={styles.tableCell}>
                 <button 
                   style={styles.editButton}
@@ -543,9 +582,6 @@ Created: ${booking.createdAt ? new Date(booking.createdAt).toLocaleString() : "N
           </span>
           <span style={styles.statBadge}>
             Confirmed: {bookings.filter(b => b.status === "CONFIRMED").length}
-          </span>
-          <span style={styles.statBadge}>
-            Completed: {bookings.filter(b => b.status === "COMPLETED").length}
           </span>
         </div>
       </div>
@@ -814,10 +850,31 @@ const styles = {
     padding: "50px",
     fontSize: "18px",
   },
+  overviewContainer: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "30px",
+  },
   overviewGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
     gap: "20px",
+  },
+  chartsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+    gap: "15px",
+  },
+  chartCard: {
+    backgroundColor: "white",
+    padding: "15px",
+    borderRadius: "8px",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+  },
+  chartTitle: {
+    margin: "0 0 10px 0",
+    fontSize: "16px",
+    color: "#2c3e50",
   },
   statCard: {
     backgroundColor: "white",
@@ -1017,39 +1074,6 @@ const styles = {
     justifyContent: "flex-end",
     gap: "10px",
     marginTop: "20px",
-  },
-  cancelButton: {
-    backgroundColor: "#95a5a6",
-    color: "white",
-    border: "none",
-    padding: "10px 20px",
-    borderRadius: "4px",
-    cursor: "pointer",
-  },
-  submitButton: {
-    backgroundColor: "#27ae60",
-    color: "white",
-    border: "none",
-    padding: "10px 20px",
-    borderRadius: "4px",
-    cursor: "pointer",
-  },
-  bookingStats: {
-    display: "flex",
-    gap: "10px",
-  },
-  statBadge: {
-    padding: "6px 12px",
-    backgroundColor: "#3498db",
-    color: "white",
-    borderRadius: "12px",
-    fontSize: "12px",
-    fontWeight: "bold",
-  },
-  subText: {
-    fontSize: "11px",
-    color: "#999",
-    marginTop: "2px",
   },
   viewButton: {
     backgroundColor: "#3498db",

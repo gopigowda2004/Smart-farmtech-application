@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { useI18n } from "../i18n/i18n";
 import LanguageSwitcher from "../components/LanguageSwitcher";
+import api from "../api/axiosInstance";
 
 const Register = () => {
   const { t } = useI18n();
@@ -30,8 +30,8 @@ const Register = () => {
     }
     try {
       setLoading(true);
-      const res = await axios.get(
-        `http://localhost:8090/api/farmers/fetch/${formData.aadharNumber}`
+      const res = await api.get(
+        `/farmers/fetch/${formData.aadharNumber}`
       );
       setFormData({
         ...formData,
@@ -53,7 +53,7 @@ const Register = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post("http://localhost:8090/api/auth/register", formData);
+      await api.post("/auth/register", formData);
       alert(`✅ ${t("register.alerts.success")}`);
       navigate("/login");
     } catch (error) {
