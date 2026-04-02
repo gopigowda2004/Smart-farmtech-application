@@ -77,7 +77,7 @@ Make sure you have installed:
 1. Navigate to frontend folder:
 
    ```bash
-   cd frontend
+   cd farmer-rental-app
    ```
 
 2. Install dependencies:
